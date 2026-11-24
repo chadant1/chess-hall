@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Wild Cards · Game Hall</title>
+<meta name="theme-color" content="#1b1016">
+<link rel="manifest" href="../manifest.webmanifest"><link rel="icon" href="../icons/icon-192.png"><link rel="apple-touch-icon" href="../icons/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/hall.css">
+<style>
+/* Wild Cards: a felt card table; cards are our own design: a colour field with a big badge and corner marks; wilds carry a four-colour wheel. */
+.tbl{position:relative;border-radius:26px;background:radial-gradient(120% 90% at 50% 40%,#4a2238,#25101c 75%);box-shadow:var(--sh),inset 0 0 0 3px rgba(227,183,92,.35),inset 0 0 60px rgba(0,0,0,.5);padding:clamp(12px,2vw,22px);display:flex;flex-direction:column;gap:clamp(10px,2vw,18px);min-height:min(78dvh,720px);color:#f6ecef;user-select:none;-webkit-user-select:none}
+.opps{display:flex;justify-content:center;gap:clamp(8px,2vw,22px);flex-wrap:wrap}
+.opp{background:rgba(0,0,0,.28);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:8px 12px;min-width:140px;text-align:center;transition:box-shadow .2s,border-color .2s;position:relative}
+.opp.turn{border-color:#e3b75c;box-shadow:0 0 0 2px #e3b75c,0 0 24px rgba(227,183,92,.35)}
+.opp.out{opacity:.45}
+.opp .on{font-weight:800;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px;margin:0 auto}
+.fan{position:relative;height:50px;margin:6px auto 12px;width:120px}
+.fan i{position:absolute;bottom:0;left:50%;width:30px;height:45px;border-radius:5px;transform-origin:50% 120%;box-shadow:0 2px 4px rgba(0,0,0,.4)}
+.opp .n{font:800 13px/1 Manrope,system-ui,sans-serif;color:#e8d6de}
+.flag{position:absolute;top:-10px;right:-8px;background:#e5484d;color:#fff;font:800 12px/1 Manrope,system-ui,sans-serif;padding:5px 8px;border-radius:99px;box-shadow:0 2px 6px rgba(0,0,0,.4);animation:pop .4s}
+@keyframes pop{from{transform:scale(.4)}}
+.mid{flex:1;display:flex;align-items:center;justify-content:center;gap:clamp(18px,5vw,60px);position:relative;min-height:180px}
+.pile{position:relative;cursor:pointer}
+.pile .cnt{position:absolute;bottom:-24px;left:0;right:0;text-align:center;font:700 13px/1 Manrope,system-ui,sans-serif;color:#d9c3cf}
+.ring{position:absolute;inset:-14px;border-radius:24px;border:4px solid var(--cur,#888);box-shadow:0 0 30px var(--cur,#888);opacity:.85;transition:border-color .3s,box-shadow .3s}
+.dir{position:absolute;width:clamp(240px,40vw,430px);aspect-ratio:1;opacity:.16;pointer-events:none}
+.dir.ccw{transform:scaleX(-1)}
+.dir svg{width:100%;height:100%;animation:spin 18s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.pend{position:absolute;top:-16px;right:-26px;background:#e5484d;color:#fff;font:800 20px/1 Fraunces,Georgia,serif;padding:8px 12px;border-radius:14px;box-shadow:0 4px 14px rgba(0,0,0,.5);z-index:3;animation:pop .35s}
+.me{display:flex;flex-direction:column;gap:10px;align-items:center}
+.bar{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;min-height:44px}
+.bar .ib{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.16);color:#f6ecef}
+.bar .ib.pri{background:#e3b75c;color:#21120a;border-color:#e3b75c}
+.bar .ib.alert{background:#e5484d;border-color:#e5484d;color:#fff;animation:pop .4s}
+.hand{display:flex;justify-content:center;width:100%;padding:18px 6px 4px;min-height:calc(var(--cw) * 1.5 + 24px)}
+.hand .card{margin-left:var(--ov,0px);transition:transform .18s,margin .2s}
+.hand .card:first-child{margin-left:0}
+.hand .card.ok{transform:translateY(-14px);box-shadow:0 0 0 3px #f3cf73,0 10px 18px rgba(0,0,0,.5)}
+.hand .card:hover{transform:translateY(-18px);z-index:5}
+.hand.dim .card{filter:brightness(.8)}
+.hand .card.nw{animation:deal .35s cubic-bezier(.2,.8,.3,1.2)}
+@keyframes deal{from{transform:translateY(-60px) scale(.7);opacity:0}}
+.card{--cw:clamp(56px,8.4vw,96px);position:relative;flex:none;width:var(--cw);aspect-ratio:2/3;border-radius:calc(var(--cw)*.11);background:#fbf6ee;box-shadow:0 4px 10px rgba(0,0,0,.45);cursor:pointer;padding:calc(var(--cw)*.06);color:#fff}
+.tbl{--cw:clamp(56px,8.4vw,96px)}
+.card .f{position:absolute;inset:calc(var(--cw)*.06);border-radius:calc(var(--cw)*.08);background:var(--k);overflow:hidden}
+.card .f::before{content:"";position:absolute;inset:0;background:repeating-radial-gradient(circle at 120% -20%,rgba(255,255,255,.13) 0 6%,transparent 6% 12%)}
+.card .bd{position:absolute;left:50%;top:50%;translate:-50% -50%;width:62%;aspect-ratio:1;border-radius:26%;background:#fff;display:grid;place-items:center;color:var(--k);font:700 calc(var(--cw)*.36)/1 Fraunces,Georgia,serif;box-shadow:inset 0 -3px 0 rgba(0,0,0,.12);rotate:-8deg}
+.card .bd svg{width:70%;height:70%}
+.card .cn{position:absolute;font:800 calc(var(--cw)*.15)/1 Manrope,system-ui,sans-serif;color:#fff;text-shadow:0 1px 1px rgba(0,0,0,.35)}
+.card .cn.a{top:9%;left:12%}.card .cn.b{bottom:9%;right:12%;rotate:180deg}
+.card .cn svg{width:calc(var(--cw)*.17);height:calc(var(--cw)*.17)}
+.card.w .f{background:#1d1418}
+.card.w .bd{background:conic-gradient(#e5484d 0 25%,#e6b422 0 50%,#2f9e5e 0 75%,#2f72d6 0);color:#fff;text-shadow:0 2px 3px rgba(0,0,0,.6)}
+.card.big{--cw:clamp(80px,12vw,130px)}
+.back{width:var(--cw);aspect-ratio:2/3;border-radius:calc(var(--cw)*.11);background:#fbf6ee;padding:calc(var(--cw)*.06);box-shadow:0 4px 10px rgba(0,0,0,.45)}
+.back b{display:grid;place-items:center;width:100%;height:100%;border-radius:calc(var(--cw)*.08);background:radial-gradient(circle,#6a2c48,#2a1020 80%);color:#e3b75c;font:700 calc(var(--cw)*.2)/1 Fraunces,Georgia,serif;box-shadow:inset 0 0 0 calc(var(--cw)*.03) rgba(227,183,92,.6)}
+.big .back,.back.big{--cw:clamp(80px,12vw,130px)}
+.pick{position:absolute;inset:0;z-index:15;background:rgba(14,6,10,.72);backdrop-filter:blur(3px);border-radius:26px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px;padding:20px;text-align:center}
+.pick h3{margin:0;font:700 28px/1.1 Fraunces,Georgia,serif}
+.pick .cols{display:grid;grid-template-columns:repeat(2,minmax(0,120px));gap:12px}
+.pick .cols button{aspect-ratio:1.4;border-radius:18px;border:3px solid rgba(255,255,255,.7);font:800 18px Manrope,system-ui,sans-serif;color:#fff;cursor:pointer;text-shadow:0 1px 2px rgba(0,0,0,.4);box-shadow:0 6px 16px rgba(0,0,0,.4)}
+.pick .who{display:flex;flex-direction:column;gap:8px;min-width:240px}
+.pick .who button{min-height:48px;border-radius:12px;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.08);color:#fff;font:700 16px Manrope,system-ui,sans-serif;cursor:pointer}
+.youname{font:700 14px/1 Manrope,system-ui,sans-serif;color:#d9c3cf}
+.youname b{color:#f6ecef}
+@media (max-width:600px){.tbl{--cw:clamp(50px,15vw,70px);min-height:0}.card{--cw:clamp(50px,15vw,70px)}.card.big,.big .back{--cw:clamp(76px,22vw,100px)}.opp{min-width:96px;padding:6px 8px}.fan{width:86px;height:42px}.fan i{width:24px;height:36px}}
+</style>
+</head>
+<body>
+<script src="../shared/peerjs.min.js"></script>
+<script src="../shared/hall.js"></script>
+<script>
+{
+const COL = {r:'#e5484d', y:'#e6b422', g:'#2f9e5e', b:'#2f72d6', w:'#1d1418'};
+const CNAME = {r:'Red', y:'Yellow', g:'Green', b:'Blue', w:'Wild'};
+const VNAME = {skip:'Skip', rev:'Reverse', d2:'+2', d4c:'+4', disc:'Discard All', skipall:'Skip Everyone', wild:'Wild', w4:'Wild +4', wr4:'Wild Reverse +4', w6:'Wild +6', w10:'Wild +10', roul:'Colour Roulette'};
+const WILDS = ['wild', 'w4', 'wr4', 'w6', 'w10', 'roul'];
+const AMT = {d2:2, d4c:4, w4:4, wr4:4, w6:6, w10:10};
+const isWild = v => WILDS.includes(v);
+const cardName = c => isWild(c.v) ? VNAME[c.v] : CNAME[c.c] + ' ' + (VNAME[c.v] || c.v);
+const shuffle = a => { for (let i = a.length - 1; i > 0; i--){ const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+function buildDeck(mercy){
+  const d = []; let id = 0; const add = (c, v, n) => { for (let k = 0; k < n; k++) d.push({id:id++, c, v}); };
+  for (const c of 'rygb'){
+    add(c, '0', mercy ? 2 : 1);
+    for (let v = 1; v <= 9; v++) add(c, String(v), 2);
+    if (!mercy){ add(c, 'skip', 2); add(c, 'rev', 2); add(c, 'd2', 2); }
+    else { add(c, 'skip', 3); add(c, 'rev', 3); add(c, 'd2', 3); add(c, 'd4c', 2); add(c, 'disc', 2); add(c, 'skipall', 2); }
+  }
+  if (!mercy){ add('w', 'wild', 4); add('w', 'w4', 4); }
+  else { add('w', 'wr4', 8); add('w', 'w6', 4); add('w', 'w10', 4); add('w', 'roul', 8); }
+  return shuffle(d);
+}
+const stacking = s => s.mercy || s.stack;
+function setup({n, opts, first, players}){
+  const mercy = opts.rules === 'mercy';
+  const s = {mercy, stack:!!opts.stack, seven:mercy || !!opts.seven, lastcall:!!opts.lastcall, deck:buildDeck(mercy), discard:[], hands:[], turn:first % n, dir:1,
+    names:(players || []).map(p => String(p.name || '').slice(0, 24)), color:null, pending:0, pendingMin:0, drew:false, drewCard:null, out:Array(n).fill(false), called:Array(n).fill(false), winner:null, why:'', n:0, ev:[], lastSeat:null};
+  for (let i = 0; i < n; i++) s.hands.push(s.deck.splice(0, 7));
+  let k = s.deck.findIndex(c => /^\d$/.test(c.v));
+  const top = s.deck.splice(k, 1)[0]; s.discard.push(top); s.color = top.c;
+  return s;
+}
+const active = s => s.hands.map((_, i) => i).filter(i => !s.out[i]);
+function nextSeat(s, from, steps){
+  let t = from; const n = s.hands.length;
+  for (let k = 0; k < steps; k++){ do { t = (t + s.dir + n) % n; } while (s.out[t] && active(s).length > 0); }
+  return t;
+}
+function refill(s){
+  if (s.deck.length) return;
+  const top = s.discard.pop(); s.deck = shuffle(s.discard.map(c => ({id:c.id, c:isWild(c.v) ? 'w' : c.c, v:c.v}))); s.discard = [top];
+}
+function drawN(s, seat, n){ const got = []; for (let k = 0; k < n; k++){ refill(s); if (!s.deck.length) break; const c = s.deck.pop(); s.hands[seat].push(c); got.push(c); } return got; }
+function playable(s, c){
+  const top = s.discard[s.discard.length - 1];
+  if (s.pending > 0) return (AMT[c.v] || 0) >= s.pendingMin && (AMT[c.v] || 0) > 0;
+  if (isWild(c.v)) return true;
+  return c.c === s.color || c.v === top.v;
+}
+function mercyCheck(s){
+  if (!s.mercy) return;
+  s.hands.forEach((h, i) => { if (!s.out[i] && h.length >= 25){ s.out[i] = true; s.deck.unshift(...h.map(c => ({id:c.id, c:isWild(c.v) ? 'w' : c.c, v:c.v}))); s.hands[i] = []; s.ev.push({s:i, t:'has 25 cards and is out (No Mercy!)'}); } });
+  const a = active(s);
+  if (a.length === 1 && s.winner == null){ s.winner = a[0]; s.why = 'as the last player standing'; }
+}
+function advance(s, steps){ s.turn = nextSeat(s, s.turn, steps); s.drew = false; s.drewCard = null; }
+function act(s, seat, a){
+  s.ev = []; s.lastSeat = seat;
+  if (s.winner != null) throw new Error('The game is over');
+  if (seat !== s.turn) throw new Error('It’s not your turn');
+  const hand = s.hands[seat];
+  if (a.call){
+    if (!s.lastcall) throw new Error('Last-card calls are off');
+    s.called[seat] = true; s.ev.push({s:seat, t:'called “Last card!”'}); s.n++; return s;
+  }
+  if (a.pass){
+    if (!s.drew) throw new Error('Draw a card first');
+    s.ev.push({s:seat, t:'passed'}); advance(s, 1); s.n++; return s;
+  }
+  if (a.draw){
+    if (s.drew) throw new Error('You already drew. Play the card you drew or pass.');
+    if (s.pending > 0){
+      const got = drawN(s, seat, s.pending); s.ev.push({s:seat, t:`took ${got.length} cards`, big:got.length});
+      s.pending = 0; s.pendingMin = 0; s.called[seat] = false; advance(s, 1); mercyCheck(s); s.n++; return s;
+    }
+    let got = [];
+    if (s.mercy){ do { const c = drawN(s, seat, 1); if (!c.length) break; got.push(c[0]); } while (!playable(s, got[got.length - 1]) && got.length < 40); }
+    else got = drawN(s, seat, 1);
+    s.called[seat] = false;
+    s.ev.push({s:seat, t:got.length === 1 ? 'drew a card' : `drew ${got.length} cards`, big:got.length});
+    mercyCheck(s);
+    if (s.out[seat]){ if (s.winner == null) advance(s, 1); s.n++; return s; }
+    const last = got[got.length - 1];
+    if (last && playable(s, last)){ s.drew = true; s.drewCard = last.id; }
+    else advance(s, 1);
+    s.n++; return s;
+  }
+  // play a card
+  const i = hand.findIndex(c => c.id === a.play);
+  if (i < 0) throw new Error('That card isn’t in your hand');
+  const c = hand[i];
+  if (s.drew && c.id !== s.drewCard) throw new Error('You can only play the card you just drew');
+  if (!playable(s, c)) throw new Error(s.pending > 0 ? `Stack a draw card of +${s.pendingMin} or more, or take the cards` : 'That card doesn’t match the colour or symbol');
+  if (isWild(c.v) && !'rygb'.includes(a.color)) throw new Error('Choose a colour');
+  const others = active(s).filter(x => x !== seat);
+  if (s.seven && c.v === '7' && !others.includes(a.target)) throw new Error('Choose who to swap hands with');
+  hand.splice(i, 1);
+  s.discard.push(c); if (s.discard.length > 40) s.discard.splice(0, s.discard.length - 40);
+  s.color = isWild(c.v) ? a.color : c.c;
+  s.ev.push({s:seat, t:'played ' + cardName(c) + (isWild(c.v) ? ` and chose ${CNAME[a.color]}` : ''), card:c});
+  if (s.lastcall && hand.length === 1 && !s.called[seat]){ drawN(s, seat, 2); s.ev.push({s:seat, t:'forgot to call “Last card!” and drew 2'}); }
+  s.called[seat] = false;
+  if (!hand.length){ s.winner = seat; s.why = 'by playing their last card'; s.n++; return s; }
+  const v = c.v;
+  if (v === 'disc'){ const same = hand.filter(x => x.c === c.c); if (same.length){ for (const x of same) hand.splice(hand.indexOf(x), 1); s.discard.splice(s.discard.length - 1, 0, ...same); s.ev.push({s:seat, t:`discarded ${same.length} more ${CNAME[c.c]} card${same.length > 1 ? 's' : ''}`}); }
+    if (!hand.length){ s.winner = seat; s.why = 'by discarding their last cards'; s.n++; return s; } advance(s, 1); }
+  else if (v === 'skip') advance(s, 2);
+  else if (v === 'skipall'){ s.drew = false; s.drewCard = null; s.ev.push({s:seat, t:'skipped everyone and goes again'}); }
+  else if (v === 'rev'){ s.dir *= -1; advance(s, active(s).length === 2 ? 2 : 1); }
+  else if (AMT[v]){
+    if (v === 'wr4') s.dir *= -1;
+    if (stacking(s)){ s.pending += AMT[v]; s.pendingMin = AMT[v]; advance(s, 1); }
+    else { const nx = nextSeat(s, s.turn, 1); const got = drawN(s, nx, AMT[v]); s.ev.push({s:nx, t:`drew ${got.length} cards`, big:got.length}); advance(s, 2); }
+  }
+  else if (v === 'roul'){
+    const nx = nextSeat(s, s.turn, 1); const got = [];
+    while (got.length < 30){ const g = drawN(s, nx, 1); if (!g.length) break; got.push(g[0]); if (g[0].c === a.color) break; }
+    s.ev.push({s:nx, t:`flipped ${got.length} card${got.length > 1 ? 's' : ''} looking for ${CNAME[a.color]}`, big:got.length}); advance(s, 2);
+  }
+  else if (s.seven && v === '7'){ const t = a.target; [s.hands[seat], s.hands[t]] = [s.hands[t], s.hands[seat]]; s.ev.push({s:seat, t:'swapped hands with ' + ((s.names && s.names[t]) || 'another player')}); advance(s, 1); }
+  else if (s.seven && v === '0'){ const ac = active(s); const hs = ac.map(x => s.hands[x]); ac.forEach((x, k) => { const from = (k - s.dir + ac.length) % ac.length; s.hands[x] = hs[from]; }); s.ev.push({s:seat, t:'passed every hand along'}); advance(s, 1); }
+  else advance(s, 1);
+  mercyCheck(s);
+  s.n++; return s;
+}
+function cpu(s, seat, level){
+  const hand = s.hands[seat], ok = hand.filter(c => (!s.drew || c.id === s.drewCard) && playable(s, c));
+  const count = {r:0, y:0, g:0, b:0}; hand.forEach(c => { if (count[c.c] != null) count[c.c]++; });
+  const best = Object.keys(count).sort((a, b) => count[b] - count[a])[0];
+  const others = active(s).filter(x => x !== seat);
+  const target = others.sort((a, b) => s.hands[a].length - s.hands[b].length)[0];
+  const wrap = c => ({play:c.id, color:isWild(c.v) ? (level === 0 ? 'rygb'[Math.floor(Math.random() * 4)] : best) : undefined, target:c.v === '7' && s.seven ? target : undefined});
+  if (s.lastcall && hand.length === 2 && ok.length && !s.called[seat] && (level > 0 || Math.random() < .6)) return {call:true};
+  if (!ok.length) return s.drew ? {pass:true} : {draw:true};
+  if (level === 0) return wrap(ok[Math.floor(Math.random() * ok.length)]);
+  const nx = nextSeat(s, seat, 1), danger = s.hands[nx].length <= 2;
+  const score = c => {
+    let v = 0;
+    if (s.pending > 0) return AMT[c.v] || 0;
+    if (isWild(c.v)) v -= danger ? -6 : 8;
+    if (AMT[c.v] || ['skip', 'skipall', 'rev', 'roul'].includes(c.v)) v += danger ? 12 : 2;
+    if (c.v === 'disc') v += 4 + hand.filter(x => x.c === c.c).length * 2;
+    if (c.c === s.color) v += 2;
+    v += count[c.c] || 0;
+    if (/^\d$/.test(c.v)) v += +c.v * .2;
+    if (c.v === '7' && s.seven) v += s.hands[target].length < hand.length - 1 ? 10 : -10;
+    if (level >= 2 && c.v === 'skipall') v += 3;
+    return v + Math.random() * (level === 1 ? 3 : .5);
+  };
+  return wrap(ok.sort((a, b) => score(b) - score(a))[0]);
+}
+let CTX = null, lastN = null, pickT = null, seenIds = new Set();
+const ICO = {
+  skip:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><circle cx="12" cy="12" r="8"/><path d="M6.5 17.5l11-11"/></svg>',
+  skipall:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><circle cx="9" cy="12" r="6"/><circle cx="15" cy="12" r="6"/><path d="M4.5 16.5l15-9"/></svg>',
+  rev:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9h13l-3-3M20 15H7l3 3"/></svg>',
+  disc:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"><rect x="4" y="7" width="10" height="13" rx="2"/><path d="M8 4h10a2 2 0 0 1 2 2v11"/><path d="M7 13h4"/></svg>',
+  roul:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="12" cy="12" r="8"/><path d="M12 4v8l5 5"/><circle cx="12" cy="12" r="1.8" fill="currentColor"/></svg>',
+  dir:'<svg viewBox="0 0 100 100" fill="none" stroke="#f3cf73" stroke-width="5" stroke-linecap="round"><path d="M50 8a42 42 0 0 1 40 30"/><path d="M90 38l-2-14M90 38l-13-5"/><path d="M50 92a42 42 0 0 1-40-30"/><path d="M10 62l2 14M10 62l13 5"/></svg>'
+};
+function face(c){ const v = c.v; if (ICO[v]) return ICO[v]; if (AMT[v]) return '+' + AMT[v]; if (v === 'wild') return '★'; return esc(v); }
+function corner(c){ const v = c.v; if (ICO[v]) return ICO[v]; if (AMT[v]) return '+' + AMT[v]; if (v === 'wild') return '★'; return esc(v); }
+const esc = Hall.esc;
+function cardHtml(c, extra){ const w = isWild(c.v); return `<div class="card ${w ? 'w' : ''} ${extra || ''}" data-id="${c.id}" style="--k:${COL[c.c] || COL.w}" title="${esc(cardName(c))}"><div class="f"></div><span class="cn a">${corner(c)}</span><div class="bd">${face(c)}</div><span class="cn b">${corner(c)}</span></div>`; }
+Hall.run({
+  id:'wildcards', name:'Wild Cards', min:2, max:4, defaultPlayers:4, colors:['#e3b75c', '#e5484d', '#2f72d6', '#2f9e5e'], layout:'wide', hidden:true, handWord:'cards',
+  icon:'<svg viewBox="0 0 32 32"><rect x="4" y="5" width="14" height="21" rx="3" fill="#2f72d6" transform="rotate(-12 11 15)"/><rect x="13" y="5" width="14" height="21" rx="3" fill="#e5484d" transform="rotate(10 20 15)"/><circle cx="20" cy="15.5" r="4" fill="#fff" transform="rotate(10 20 15)"/></svg>',
+  tagline:'Match the colour or the symbol, and be first to empty your hand.',
+  hintable:true, hintLabel:'Show which cards I can play', hintShort:'Hints', logLabel:'Table',
+  options:[
+    {key:'rules', label:'Rules', def:'classic', choices:[['classic', 'Classic'], ['mercy', 'No Mercy']], note:'No Mercy: a bigger, nastier deck, stacking, 7-swap and 0-pass, draw until you can play, and anyone holding 25 cards is out.'},
+    {key:'stack', label:'Stacking (Classic)', def:false, choices:[[false, 'Off'], [true, 'Stack +2 and +4']]},
+    {key:'seven', label:'7 swaps, 0 passes (Classic)', def:false, choices:[[false, 'Off'], [true, 'On']]},
+    {key:'lastcall', label:'Call “Last card!”', def:false, choices:[[false, 'Off'], [true, 'On, or draw 2']]}],
+  credit:'Wild Cards is an original card design using classic shedding-game rules.',
+  rules:`<p>Everyone starts with 7 cards. On your turn, play one card that matches the top card's <b>colour</b> or its <b>number or symbol</b>. The first player to empty their hand wins.</p>
+  <h3>Can't play?</h3><p>Tap the deck to draw. If the card you drew can be played, you may play it; otherwise your turn ends. (No Mercy: keep drawing until you get one you can play.)</p>
+  <h3>Action cards</h3><ul><li><b>Skip</b>: the next player misses a turn. <b>Reverse</b>: play changes direction (with 2 players it works like Skip).</li><li><b>+2 / +4</b>: the next player draws that many and misses a turn.</li><li><b>Wild</b>: choose the new colour. <b>Wild +4</b>: choose a colour, and the next player draws 4.</li></ul>
+  <h3>No Mercy extras</h3><ul><li><b>Stacking</b>: answer a draw card with an equal or bigger one, and the total passes on. Whoever can't stack takes them all.</li><li><b>Skip Everyone</b>: you go again. <b>Discard All</b>: also throw away every card of that colour from your hand.</li><li><b>Wild Reverse +4, Wild +6, Wild +10</b>: choose a colour; the next player draws.</li><li><b>Colour Roulette</b>: choose a colour; the next player flips cards until that colour shows and keeps them all.</li><li><b>7</b>: swap hands with anyone. <b>0</b>: everyone passes their hand along.</li><li><b>Mercy rule</b>: anyone holding 25 cards is out. The last one standing also wins.</li></ul>
+  <h3>Hints</h3><p>With hints on, cards you can play lift up and glow gold.</p>`,
+  setup, act,
+  current:s => s.winner != null ? null : s.turn,
+  view(s, seat){
+    s.hands = s.hands.map((h, i) => i === seat ? h : h.length);
+    s.deck = s.deck.length;
+    s.discard = s.discard.slice(-1);
+    if (seat !== s.turn) s.drewCard = null;
+    return s;
+  },
+  over:s => s.winner != null ? {winners:[s.winner], text:s.why} : null,
+  cpu, cpuDelay:() => 900 + Math.random() * 500,
+  describe(a, prev, next, seat){ const e = next.ev.filter(x => x.s === seat).map(x => x.t); const o = next.ev.filter(x => x.s !== seat); if (o.length) e.push(o.map(x => ((next.names && next.names[x.s]) || (CTX && CTX.players[x.s] ? CTX.players[x.s].name : 'Someone')) + ' ' + x.t).join('; ')); return e.join('; '); },
+  score(s, i){ const n = typeof s.hands[i] === 'number' ? s.hands[i] : s.hands[i].length; return s.out[i] ? {v:'Out', l:'25+ cards'} : {v:n, l:n === 1 ? 'card' : 'cards'}; },
+  status(s, {actor}){
+    if (!s) return '';
+    if (actor == null) return s.pending ? `+${s.pending} is waiting for the next player` : '';
+    if (s.pending) return `Stack a +${s.pendingMin} or bigger, or take ${s.pending} cards`;
+    if (s.drew) return 'Play the card you drew, or pass';
+    return 'Play a ' + CNAME[s.color] + ' card or a matching symbol, or draw';
+  },
+  render
+});
+function render(ctx, stage){
+  CTX = ctx;
+  const s = ctx.state, n = s.hands.length, me = ctx.viewer;
+  const handOf = i => s.hands[i], cnt = i => typeof s.hands[i] === 'number' ? s.hands[i] : s.hands[i].length;
+  let tbl = stage.querySelector('.tbl');
+  if (!tbl){
+    stage.innerHTML = '<div class="tbl"><div class="opps"></div><div class="mid"><div class="dir"></div><div class="pile big" id="drawPile"><div class="back"><b>W</b></div><span class="cnt"></span></div><div class="pile" id="disc"><div class="ring"></div><div class="top"></div></div></div><div class="me"><div class="youname"></div><div class="bar"></div><div class="hand"></div></div></div>';
+    tbl = stage.querySelector('.tbl'); lastN = null; seenIds = new Set();
+    tbl.querySelector('.dir').innerHTML = ICO.dir;
+    tbl.querySelector('#drawPile').onclick = () => { if (CTX.actor == null) return; if (CTX.state.drew){ CTX.sfx.bad(); CTX.toast('Play the card you drew, or pass'); return; } CTX.act({draw:true}); };
+    tbl.addEventListener('click', onTable);
+  }
+  // opponents, in turn order after the viewer
+  const order = []; const base = me == null ? 0 : me;
+  for (let k = me == null ? 0 : 1; k < n; k++) order.push((base + k) % n);
+  tbl.querySelector('.opps').innerHTML = order.map(i => {
+    const c = cnt(i), shown = Math.min(c, 9), p = ctx.players[i] || {};
+    const fan = Array.from({length:shown}, (_, k) => `<i style="background:radial-gradient(circle,#6a2c48,#2a1020 80%);border:2px solid #fbf6ee;transform:translateX(-50%) rotate(${(k - (shown - 1) / 2) * 9}deg)"></i>`).join('');
+    return `<div class="opp ${s.turn === i && s.winner == null ? 'turn' : ''} ${s.out[i] ? 'out' : ''}"><div class="on">${esc(p.name || 'Player ' + (i + 1))}</div><div class="fan">${fan}</div><div class="n">${s.out[i] ? 'Out!' : c + (c === 1 ? ' card' : ' cards')}</div>${c === 1 && !s.out[i] ? '<span class="flag">Last card!</span>' : ''}</div>`;
+  }).join('');
+  // middle
+  const top = s.discard[s.discard.length - 1];
+  const disc = tbl.querySelector('#disc');
+  disc.style.setProperty('--cur', COL[s.color]);
+  const topEl = disc.querySelector('.top');
+  if (topEl.dataset.id !== String(top.id)){ topEl.dataset.id = top.id; topEl.innerHTML = cardHtml(top, 'big nw'); }
+  const pend = disc.querySelector('.pend'); if (pend) pend.remove();
+  if (s.pending){ const b = document.createElement('span'); b.className = 'pend'; b.textContent = '+' + s.pending; disc.appendChild(b); }
+  tbl.querySelector('.dir').classList.toggle('ccw', s.dir < 0);
+  tbl.querySelector('#drawPile .cnt').textContent = (typeof s.deck === 'number' ? s.deck : s.deck.length) + ' left';
+  // my hand
+  const mine = me != null ? handOf(me) : null;
+  tbl.querySelector('.youname').innerHTML = me != null ? `<b>${esc((ctx.players[me] || {}).name || 'You')}</b> · ${Array.isArray(mine) ? mine.length : 0} cards${s.out[me] ? ' · out' : ''}` : '';
+  const handEl = tbl.querySelector('.hand');
+  if (Array.isArray(mine)){
+    const sorted = mine.slice().sort((a, b) => ('rygbw'.indexOf(a.c) - 'rygbw'.indexOf(b.c)) || (String(a.v) < String(b.v) ? -1 : 1));
+    const canPlay = c => ctx.actor === me && (!s.drew || c.id === s.drewCard) && playable(s, c);
+    handEl.innerHTML = sorted.map(c => cardHtml(c, (ctx.hints && canPlay(c) ? 'ok ' : '') + (lastN !== null && !seenIds.has(c.id) ? 'nw' : ''))).join('');
+    sorted.forEach(c => seenIds.add(c.id));
+    const cw = handEl.querySelector('.card') ? handEl.querySelector('.card').getBoundingClientRect().width : 80;
+    const avail = handEl.clientWidth - 12, need = sorted.length * cw;
+    handEl.style.setProperty('--ov', need > avail && sorted.length > 1 ? -Math.min(cw * .72, (need - avail) / (sorted.length - 1)) + 'px' : '-6px');
+    handEl.classList.toggle('dim', ctx.actor !== me);
+  } else handEl.innerHTML = '';
+  // action bar
+  const bar = [];
+  if (ctx.actor != null){
+    if (s.pending) bar.push(`<button class="ib alert" data-a="draw">Take ${s.pending} cards</button>`);
+    else if (s.drew) bar.push(`<button class="ib" data-a="pass">Pass</button>`);
+    else bar.push(`<button class="ib" data-a="draw">Draw a card</button>`);
+    if (s.lastcall && Array.isArray(mine) && mine.length === 2 && !s.called[me]) bar.push(`<button class="ib pri" data-a="call">Last card!</button>`);
+  }
+  tbl.querySelector('.bar').innerHTML = bar.join('');
+  // sounds for what just happened
+  if (lastN !== null && s.n !== lastN && ctx.anim){
+    const big = (s.ev || []).reduce((m, e) => Math.max(m, e.big || 0), 0);
+    if (big) ctx.sfx.deal(Math.min(big, 6)); else ctx.sfx.card();
+    if ((s.ev || []).some(e => e.card && (AMT[e.card.v] || ['skip', 'skipall', 'roul'].includes(e.card.v)))) setTimeout(() => ctx.sfx.good(), 200);
+    if ((s.ev || []).some(e => /is out/.test(e.t))) setTimeout(() => ctx.sfx.lose(), 300);
+  }
+  lastN = s.n;
+  const pk = tbl.querySelector('.pick'); if (pk && ctx.actor == null) pk.remove();
+}
+function onTable(e){
+  const ctx = CTX; if (!ctx) return;
+  const btn = e.target.closest('[data-a]');
+  if (btn && ctx.actor != null){ ctx.act({[btn.dataset.a]:true}); return; }
+  const cardEl = e.target.closest('.hand .card');
+  if (!cardEl || ctx.actor == null) return;
+  const s = ctx.state, hand = s.hands[ctx.actor], c = hand.find(x => x.id === +cardEl.dataset.id);
+  if (!c) return;
+  if (s.drew && c.id !== s.drewCard){ ctx.sfx.bad(); ctx.toast('You can only play the card you just drew, or pass'); shake(cardEl); return; }
+  if (!playable(s, c)){ ctx.sfx.bad(); ctx.toast(s.pending ? `Stack a +${s.pendingMin} or bigger, or take the cards` : `That doesn’t match ${CNAME[s.color]} or the symbol on top`); shake(cardEl); return; }
+  const a = {play:c.id};
+  const finish = () => {
+    if (s.seven && c.v === '7'){
+      const others = s.hands.map((_, i) => i).filter(i => i !== ctx.actor && !s.out[i]);
+      if (others.length === 1){ a.target = others[0]; a.targetName = (ctx.players[others[0]] || {}).name; return ctx.act(a); }
+      return pick('Swap hands with…', `<div class="who">${others.map(i => `<button data-t="${i}">${esc((ctx.players[i] || {}).name || 'Player')} · ${s.hands[i]} cards</button>`).join('')}</div>`, el => { a.target = +el.dataset.t; a.targetName = (ctx.players[a.target] || {}).name; ctx.act(a); });
+    }
+    ctx.act(a);
+  };
+  if (isWild(c.v)) pick(c.v === 'roul' ? 'Pick the colour they must find' : 'Choose a colour', `<div class="cols">${'rygb'.split('').map(k => `<button data-c="${k}" style="background:${COL[k]}">${CNAME[k]}</button>`).join('')}</div>`, el => { a.color = el.dataset.c; finish(); });
+  else finish();
+}
+function shake(el){ el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake'); }
+function pick(title, body, cb){
+  const tbl = document.querySelector('.tbl'), old = tbl.querySelector('.pick'); if (old) old.remove();
+  const p = document.createElement('div'); p.className = 'pick';
+  p.innerHTML = `<h3></h3>${body}<button class="ib" data-x>Cancel</button>`;
+  p.querySelector('h3').textContent = title;
+  p.onclick = e => { const b = e.target.closest('[data-c],[data-t]'); if (b){ p.remove(); cb(b); } else if (e.target.closest('[data-x]') || e.target === p) p.remove(); };
+  tbl.appendChild(p);
+}
+}
+</script>
+</body>
+</html>

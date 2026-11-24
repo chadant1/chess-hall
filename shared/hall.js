@@ -201,7 +201,7 @@ function run(G){
       if (G.hidden && shown !== c) return null;
       return c;
     }
-    const v = viewerSeat(); return v != null && mySeats().includes(v) ? v : null;
+    const v = viewerSeat(); return v != null && mySeats().includes(v) && (G.anyTurn || c === v) ? v : null;
   }
   function viewState(){
     if (!T || !T.state) return null;

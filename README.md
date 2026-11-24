@@ -1,6 +1,6 @@
 # Game Hall
 
-A family games room for laptops, tablets and phones: Chess, Checkers, Mancala and Reversi, with Wild Cards, Five Dice and Word Tiles on the way. It runs in the browser with nothing to install, and you can add it to a home screen.
+A family games room for laptops, tablets and phones: Chess, Checkers, Mancala, Reversi, Wild Cards (with No Mercy rules) and Five Dice, with Word Tiles on the way. It runs in the browser with nothing to install, and you can add it to a home screen.
 
 **Play it:** https://chadant1.github.io/chess-hall/
 

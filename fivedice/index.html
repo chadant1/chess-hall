@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Five Dice · Game Hall</title>
+<meta name="theme-color" content="#1b1016">
+<link rel="manifest" href="../manifest.webmanifest"><link rel="icon" href="../icons/icon-192.png"><link rel="apple-touch-icon" href="../icons/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/hall.css">
+<style>
+/* Five Dice: ivory dice tumbling in a leather dice tray, with a printed score pad beside them. */
+.wrap{display:flex;flex-direction:column;gap:16px}
+.tray{position:relative;border-radius:24px;background:radial-gradient(120% 120% at 50% 30%,#5a2a40,#2a1020 75%);box-shadow:var(--sh),inset 0 0 0 3px rgba(227,183,92,.35),inset 0 10px 40px rgba(0,0,0,.6);padding:clamp(16px,3vw,28px);display:flex;flex-direction:column;align-items:center;gap:14px;color:#f6ecef;user-select:none;-webkit-user-select:none}
+.dice{display:flex;gap:clamp(8px,2.2vw,20px);justify-content:center;flex-wrap:nowrap}
+.die{--d:clamp(50px,11vw,84px);width:var(--d);height:var(--d);border-radius:22%;background:linear-gradient(145deg,#fffdf8,#e9e0d2);box-shadow:inset 0 -4px 0 rgba(0,0,0,.12),0 8px 14px rgba(0,0,0,.45);display:grid;grid-template:repeat(3,1fr)/repeat(3,1fr);padding:calc(var(--d)*.14);cursor:pointer;position:relative;transition:transform .2s,box-shadow .2s;border:0}
+.die i{width:68%;aspect-ratio:1;border-radius:50%;background:radial-gradient(circle at 35% 30%,#5b2a40,#24101a);place-self:center;opacity:0}
+.die[data-v="1"] i:nth-child(5),.die[data-v="2"] i:nth-child(1),.die[data-v="2"] i:nth-child(9),.die[data-v="3"] i:nth-child(1),.die[data-v="3"] i:nth-child(5),.die[data-v="3"] i:nth-child(9),
+.die[data-v="4"] i:nth-child(1),.die[data-v="4"] i:nth-child(3),.die[data-v="4"] i:nth-child(7),.die[data-v="4"] i:nth-child(9),
+.die[data-v="5"] i:nth-child(1),.die[data-v="5"] i:nth-child(3),.die[data-v="5"] i:nth-child(5),.die[data-v="5"] i:nth-child(7),.die[data-v="5"] i:nth-child(9),
+.die[data-v="6"] i:nth-child(1),.die[data-v="6"] i:nth-child(3),.die[data-v="6"] i:nth-child(4),.die[data-v="6"] i:nth-child(6),.die[data-v="6"] i:nth-child(7),.die[data-v="6"] i:nth-child(9){opacity:1}
+.die[data-v="1"] i:nth-child(5){background:radial-gradient(circle at 35% 30%,#ff6f6a,#a31b25);width:80%}
+.die.held{transform:translateY(-10px);box-shadow:0 0 0 4px #e3b75c,0 14px 18px rgba(0,0,0,.5)}
+.die.held::after{content:"Held";position:absolute;bottom:-26px;left:50%;translate:-50% 0;font:800 12px/1 Manrope,system-ui,sans-serif;color:#f3cf73}
+.die.blank i{opacity:0!important}
+.die.blank{background:linear-gradient(145deg,#f3ece2,#d9cfc0);opacity:.55}
+.die.roll{animation:tumble .55s cubic-bezier(.2,.7,.3,1)}
+@keyframes tumble{0%{transform:translateY(-40px) rotate(-200deg) scale(.8)}60%{transform:translateY(4px) rotate(15deg)}100%{transform:none}}
+.rollrow{display:flex;gap:12px;align-items:center;flex-wrap:wrap;justify-content:center;margin-top:12px}
+.rollbtn{min-height:52px;padding:0 26px;font-size:17px}
+.left{display:flex;gap:6px}.left b{width:12px;height:12px;border-radius:50%;background:#e3b75c}.left b.used{background:rgba(255,255,255,.18)}
+.who{font:700 15px/1 Manrope,system-ui,sans-serif;color:#d9c3cf}.who b{color:#fff}
+.pad{background:var(--panel);border:1px solid var(--line);border-radius:18px;box-shadow:var(--sh);overflow:auto}
+table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+th,td{padding:7px 10px;border-bottom:1px solid var(--line);text-align:right;font-size:15px;white-space:nowrap}
+th:first-child,td:first-child{text-align:left;position:sticky;left:0;background:var(--panel);z-index:1}
+thead th{font-size:13px;color:var(--mut);font-weight:800;position:sticky;top:0;background:var(--panel);z-index:2}
+thead th.cur{color:var(--brass)}
+td.cur{background:var(--brassbg)}
+td .nm{font-weight:700}td small{display:block;color:var(--mut);font-size:12px;font-weight:600}
+tr.sub td{font-weight:800;background:var(--panel2)}tr.sub td:first-child{background:var(--panel2)}
+tr.tot td{font:800 18px/1.2 Manrope,system-ui,sans-serif;background:var(--brassbg)}tr.tot td:first-child{background:var(--brassbg)}
+td.open{cursor:pointer;color:var(--mut)}
+td.open.pv{color:var(--brass);font-weight:800}
+td.open:hover{outline:2px solid var(--brass);outline-offset:-2px}
+td.zero{color:var(--mut)}
+td.just{animation:just 1s}@keyframes just{0%{background:rgba(227,183,92,.6)}}
+@media (max-width:600px){th,td{padding:6px 6px;font-size:14px}td small{display:none}}
+</style>
+</head>
+<body>
+<script src="../shared/peerjs.min.js"></script>
+<script src="../shared/hall.js"></script>
+<script>
+{
+const CATS = [
+  ['ones', 'Ones', 'Add up the 1s'], ['twos', 'Twos', 'Add up the 2s'], ['threes', 'Threes', 'Add up the 3s'], ['fours', 'Fours', 'Add up the 4s'], ['fives', 'Fives', 'Add up the 5s'], ['sixes', 'Sixes', 'Add up the 6s'],
+  ['three', 'Three of a kind', 'Total of all dice'], ['four', 'Four of a kind', 'Total of all dice'], ['house', 'Full house', '25 points'], ['small', 'Small straight', '4 in a row · 30'],
+  ['large', 'Large straight', '5 in a row · 40'], ['five', 'Five of a kind', '50 points'], ['chance', 'Chance', 'Total of all dice']];
+const UPPER = CATS.slice(0, 6).map(c => c[0]);
+const sum = d => d.reduce((a, b) => a + b, 0);
+const counts = d => { const c = [0, 0, 0, 0, 0, 0, 0]; d.forEach(v => c[v]++); return c; };
+function scoreFor(cat, d, card){
+  const c = counts(d), mx = Math.max(...c), s = sum(d);
+  const isFive = mx === 5, joker = isFive && card && card.five != null && card[UPPER[d[0] - 1]] != null;
+  const run = n => { const set = new Set(d); for (let st = 1; st + n - 1 <= 6; st++){ let ok = true; for (let k = st; k < st + n; k++) if (!set.has(k)) ok = false; if (ok) return true; } return false; };
+  switch (cat){
+    case 'ones': case 'twos': case 'threes': case 'fours': case 'fives': case 'sixes': { const v = UPPER.indexOf(cat) + 1; return c[v] * v; }
+    case 'three': return mx >= 3 ? s : 0;
+    case 'four': return mx >= 4 ? s : 0;
+    case 'house': return (c.includes(3) && c.includes(2)) || joker ? 25 : 0;
+    case 'small': return run(4) || joker ? 30 : 0;
+    case 'large': return run(5) || joker ? 40 : 0;
+    case 'five': return isFive ? 50 : 0;
+    case 'chance': return s;
+  }
+  return 0;
+}
+function totals(card){
+  const up = UPPER.reduce((a, k) => a + (card[k] || 0), 0), bonus = up >= 63 ? 35 : 0;
+  const low = CATS.slice(6).reduce((a, [k]) => a + (card[k] || 0), 0);
+  return {up, bonus, low, extra:card.extra || 0, total:up + bonus + low + (card.extra || 0)};
+}
+const roll1 = () => 1 + Math.floor(Math.random() * 6);
+function setup({n, first}){
+  return {cards:Array.from({length:n}, () => ({})), dice:[0, 0, 0, 0, 0], held:[false, false, false, false, false], rolls:0, turn:first % n, n:0, last:null, done:false};
+}
+function act(s, seat, a){
+  if (s.done) throw new Error('The game is over');
+  if (seat !== s.turn) throw new Error('It’s not your turn');
+  if (a.roll){
+    if (s.rolls >= 3) throw new Error('No rolls left: pick a box to score');
+    const hold = Array.isArray(a.hold) && s.rolls > 0 ? a.hold.map(Boolean).slice(0, 5) : [false, false, false, false, false];
+    s.held = hold; s.dice = s.dice.map((v, i) => hold[i] ? v : roll1()); s.rolls++;
+    s.n++; s.last = {kind:'roll', seat, n:s.n, rolled:hold.map(h => !h)}; return s;
+  }
+  if (a.score){
+    if (!s.rolls) throw new Error('Roll the dice first');
+    const card = s.cards[seat], cat = a.score;
+    if (!CATS.some(c => c[0] === cat)) throw new Error('Pick a box on your score card');
+    if (card[cat] != null) throw new Error('You already filled that box');
+    const isFive = new Set(s.dice).size === 1;
+    let pts = scoreFor(cat, s.dice, card);
+    let bonus = 0;
+    if (isFive && card.five === 50){ card.extra = (card.extra || 0) + 100; bonus = 100; }
+    card[cat] = pts;
+    s.n++; s.last = {kind:'score', seat, cat, pts, bonus, n:s.n};
+    s.rolls = 0; s.held = [false, false, false, false, false]; s.dice = [0, 0, 0, 0, 0];
+    const n = s.cards.length;
+    s.turn = (s.turn + 1) % n;
+    if (s.cards.every(c => CATS.every(([k]) => c[k] != null))) s.done = true;
+    return s;
+  }
+  throw new Error('Roll, or pick a box to score');
+}
+function bestCat(d, card){
+  let best = null, bv = -1;
+  for (const [k] of CATS){
+    if (card[k] != null) continue;
+    let v = scoreFor(k, d, card);
+    // value boxes by how good the score is for that box, not just raw points
+    const w = {ones:1, twos:1, threes:1, fours:1, fives:1, sixes:1, three:.8, four:.9, house:1, small:1, large:1, five:1.2, chance:.55}[k];
+    let adj = v * w;
+    if (UPPER.includes(k)){ const face = UPPER.indexOf(k) + 1; adj += (counts(d)[face] - 3) * face * .9; }
+    if (v === 0) adj = -({five:6, large:8, small:5, house:4, four:3, three:2, chance:8, ones:.5, twos:1, threes:2, fours:3, fives:4, sixes:5}[k]);
+    if (adj > bv){ bv = adj; best = k; }
+  }
+  return best;
+}
+function expectHold(d, hold, card, rollsLeft, sims){
+  let tot = 0;
+  for (let t = 0; t < sims; t++){
+    let x = d.map((v, i) => hold[i] ? v : roll1());
+    if (rollsLeft > 1){ const h2 = heurHold(x, card); x = x.map((v, i) => h2[i] ? v : roll1()); }
+    const k = bestCat(x, card); tot += k ? scoreFor(k, x, card) + (k === 'five' && scoreFor('five', x, card) ? 15 : 0) : 0;
+  }
+  return tot / sims;
+}
+function heurHold(d, card){
+  const c = counts(d), mx = Math.max(...c), face = c.lastIndexOf(mx);
+  const set = new Set(d);
+  for (const run of [[1,2,3,4,5],[2,3,4,5,6],[1,2,3,4],[2,3,4,5],[3,4,5,6]]){
+    const have = run.filter(v => set.has(v)).length;
+    if ((run.length === 5 && have >= 4 && card.large == null) || (run.length === 4 && have === 4 && (card.small == null || card.large == null))){
+      const used = new Set(); return d.map(v => run.includes(v) && !used.has(v) && used.add(v));
+    }
+  }
+  return d.map(v => v === face && mx >= 2);
+}
+function cpu(s, seat, level){
+  const card = s.cards[seat];
+  if (s.rolls === 0) return {roll:true};
+  if (s.rolls < 3){
+    const k = bestCat(s.dice, card), now = k ? scoreFor(k, s.dice, card) : 0;
+    if (level >= 1 && ((k === 'five' && now) || (k === 'large' && now) || (level >= 2 && k === 'house' && now && s.rolls === 2))) return {score:k};
+    let hold;
+    if (level === 0) hold = s.dice.map(() => Math.random() < .4);
+    else if (level === 1) hold = heurHold(s.dice, card);
+    else {
+      const sims = level === 2 ? 40 : 120; let best = heurHold(s.dice, card), bv = expectHold(s.dice, best, card, 3 - s.rolls, sims);
+      for (let m = 0; m < 32; m++){ const h = [0, 1, 2, 3, 4].map(i => !!(m >> i & 1)); const v = expectHold(s.dice, h, card, 3 - s.rolls, sims); if (v > bv){ bv = v; best = h; } }
+      const stay = k ? scoreFor(k, s.dice, card) : 0;
+      if (stay >= bv && stay > 0) return {score:k};
+      hold = best;
+    }
+    return {roll:true, hold};
+  }
+  return {score:bestCat(s.dice, card) || CATS.find(([k]) => card[k] == null)[0]};
+}
+let CTX = null, lastN = null, holdUI = [false, false, false, false, false], justCat = null;
+Hall.run({
+  id:'fivedice', name:'Five Dice', min:1, max:4, soloOk:true, defaultPlayers:2, colors:['#e3b75c', '#e5484d', '#2f72d6', '#2f9e5e'], layout:'wide', logLabel:'Rolls',
+  icon:'<svg viewBox="0 0 32 32"><rect x="3" y="8" width="16" height="16" rx="4" fill="#fbf6ee" transform="rotate(-10 11 16)"/><rect x="14" y="5" width="15" height="15" rx="4" fill="#fbf6ee" transform="rotate(12 21 12)"/><circle cx="8" cy="13" r="1.6" fill="#3a1628"/><circle cx="14" cy="19" r="1.6" fill="#3a1628"/><circle cx="11" cy="16" r="1.6" fill="#3a1628"/><circle cx="21" cy="12" r="1.8" fill="#c0283a"/></svg>',
+  tagline:'Roll five dice up to three times a turn and fill your score card.',
+  hintable:true, hintLabel:'Show what each box would score', hintShort:'Hints',
+  credit:'Five Dice uses the classic five-dice scoring game rules.',
+  rules:`<p>Everyone has a score card with 13 boxes. Each turn you fill exactly one box. After 13 rounds, the highest total wins.</p>
+  <h3>Your turn</h3><ul><li>Roll all five dice. Tap any dice you want to keep, then roll the rest. You get up to three rolls.</li><li>Then tap a box on your score card. If your dice don't fit it, you score 0 there.</li></ul>
+  <h3>The boxes</h3><ul><li><b>Ones to Sixes</b>: add up only the dice showing that number. Get 63 or more in these six boxes for a <b>35-point bonus</b>.</li><li><b>Three / Four of a kind</b>: at least 3 (or 4) dice the same; score the total of all five dice.</li><li><b>Full house</b>: three of one number and two of another: 25.</li><li><b>Small straight</b>: four in a row (like 2-3-4-5): 30. <b>Large straight</b>: five in a row: 40.</li><li><b>Five of a kind</b>: all five the same: 50. Each extra five of a kind after that earns <b>100 bonus points</b> and can fill Full house or a straight at full value.</li><li><b>Chance</b>: the total of any five dice.</li></ul>
+  <h3>Hints</h3><p>With hints on, your empty boxes show what the current dice would score.</p>`,
+  setup, act,
+  current:s => s.done ? null : s.turn,
+  over(s){
+    if (!s.done) return null;
+    const t = s.cards.map(c => totals(c).total), mx = Math.max(...t);
+    const w = t.map((v, i) => v === mx ? i : -1).filter(i => i >= 0);
+    if (t.length === 1) return {winners:[], title:'Game over', text:`You scored ${mx}` + (mx >= 250 ? '. Great game!' : '')};
+    return {winners:w, text:`with ${mx} points`};
+  },
+  cpu, cpuDelay:s => s.rolls === 0 ? 700 : 1300,
+  describe(a, prev, next){ const l = next.last; if (l.kind === 'roll') return `rolled ${next.dice.join(' ')}`; const name = CATS.find(c => c[0] === l.cat)[1]; return `scored ${l.pts} in ${name}` + (l.bonus ? ' + 100 bonus!' : ''); },
+  score(s, i){ return {v:totals(s.cards[i]).total, l:'points'}; },
+  status(s, {actor}){
+    if (!s || s.done) return '';
+    const left = 3 - s.rolls;
+    if (actor == null) return s.rolls ? `${left} roll${left === 1 ? '' : 's'} left` : '';
+    if (!s.rolls) return 'Roll the dice to start your turn';
+    return left ? `Tap dice to keep them. ${left} roll${left === 1 ? '' : 's'} left, or pick a box` : 'Pick a box to score';
+  },
+  render
+});
+const esc = Hall.esc;
+function render(ctx, stage){
+  CTX = ctx;
+  const s = ctx.state;
+  let w = stage.querySelector('.wrap');
+  if (!w){
+    stage.innerHTML = `<div class="wrap"><div class="tray"><div class="who"></div><div class="dice">${[0, 1, 2, 3, 4].map(i => `<button class="die" data-i="${i}" aria-label="Die ${i + 1}">${'<i></i>'.repeat(9)}</button>`).join('')}</div><div class="rollrow"><button class="ib pri rollbtn" id="roll">Roll</button><span class="left"><b></b><b></b><b></b></span></div></div><div class="pad"><table></table></div></div>`;
+    w = stage.querySelector('.wrap'); lastN = null;
+    w.querySelector('.dice').addEventListener('click', e => {
+      const d = e.target.closest('.die'); if (!d || !CTX || CTX.actor == null) return;
+      if (!CTX.state.rolls){ CTX.toast('Roll first'); return; }
+      if (CTX.state.rolls >= 3){ CTX.toast('No rolls left: pick a box'); return; }
+      const i = +d.dataset.i; holdUI[i] = !holdUI[i]; CTX.sfx.flip(); d.classList.toggle('held', holdUI[i]);
+    });
+    w.querySelector('#roll').onclick = () => { if (!CTX || CTX.actor == null) return; CTX.act({roll:true, hold:holdUI.slice()}); };
+    w.querySelector('table').addEventListener('click', e => {
+      const td = e.target.closest('td.open'); if (!td || !CTX || CTX.actor == null) return;
+      if (!CTX.state.rolls){ CTX.sfx.bad(); CTX.toast('Roll the dice first'); return; }
+      const cat = td.dataset.cat, pts = scoreFor(cat, CTX.state.dice, CTX.state.cards[CTX.actor]);
+      if (pts === 0 && td.dataset.confirm !== '1'){ td.dataset.confirm = '1'; CTX.toast('That scores 0 here. Tap again to take the 0'); setTimeout(() => { td.dataset.confirm = ''; }, 3000); return; }
+      justCat = cat; CTX.act({score:cat});
+    });
+  }
+  const cur = s.turn, p = ctx.players[cur] || {};
+  w.querySelector('.who').innerHTML = s.done ? 'Game over' : (ctx.actor != null ? '<b>Your turn</b>' : `<b>${esc(p.name || 'Player')}</b>’s turn`);
+  // dice
+  const newRoll = s.last && s.last.kind === 'roll' && s.last.n !== lastN && lastN !== null;
+  if (s.last && s.last.n !== lastN) holdUI = s.rolls && s.rolls < 3 ? s.held.slice() : [false, false, false, false, false];
+  w.querySelectorAll('.die').forEach((d, i) => {
+    const v = s.dice[i];
+    d.dataset.v = v || 1;
+    d.classList.toggle('blank', !v);
+    d.classList.toggle('held', !!v && holdUI[i] && s.rolls < 3);
+    if (newRoll && s.last.rolled[i] && ctx.anim){ d.classList.remove('roll'); void d.offsetWidth; d.style.animationDelay = (i * 40) + 'ms'; d.classList.add('roll'); }
+    d.disabled = ctx.actor == null;
+  });
+  if (newRoll){ ctx.sfx.dice(); if (new Set(s.dice).size === 1) setTimeout(() => { ctx.sfx.win(); ctx.toast('Five of a kind!'); }, 600); }
+  const rb = w.querySelector('#roll');
+  rb.hidden = ctx.actor == null || s.done;
+  rb.disabled = s.rolls >= 3;
+  rb.textContent = !s.rolls ? 'Roll the dice' : s.rolls >= 3 ? 'Pick a box' : holdUI.every(Boolean) ? 'Roll (all held)' : 'Roll again';
+  w.querySelectorAll('.left b').forEach((b, i) => b.classList.toggle('used', i < s.rolls));
+  // score pad
+  const n = s.cards.length, viewSeat = ctx.actor;
+  const head = `<thead><tr><th>Box</th>${ctx.players.map((q, i) => `<th class="${i === cur && !s.done ? 'cur' : ''}">${esc((q && q.name) || 'Player ' + (i + 1))}</th>`).join('')}</tr></thead>`;
+  const row = (k, label, sub) => `<tr><td><span class="nm">${label}</span><small>${sub}</small></td>${s.cards.map((c, i) => {
+    const v = c[k];
+    if (v != null) return `<td class="${v === 0 ? 'zero' : ''} ${i === cur && !s.done ? 'cur' : ''} ${justCat === k && s.last && s.last.seat === i ? 'just' : ''}">${v}</td>`;
+    if (i === viewSeat && s.rolls){ const pv = scoreFor(k, s.dice, c); return `<td class="open cur ${ctx.hints ? 'pv' : ''}" data-cat="${k}">${ctx.hints ? pv : '·'}</td>`; }
+    return `<td class="${i === cur && !s.done ? 'cur' : ''}"></td>`;
+  }).join('')}</tr>`;
+  let h = head + '<tbody>';
+  CATS.slice(0, 6).forEach(([k, l, d]) => { h += row(k, l, d); });
+  h += `<tr class="sub"><td>Bonus <small>63+ in the top half earns 35</small></td>${s.cards.map(c => { const t = totals(c); return `<td>${t.bonus ? 35 : `${t.up}/63`}</td>`; }).join('')}</tr>`;
+  CATS.slice(6).forEach(([k, l, d]) => { h += row(k, l, d); });
+  if (s.cards.some(c => c.extra)) h += `<tr class="sub"><td>Five-of-a-kind bonus</td>${s.cards.map(c => `<td>${c.extra || 0}</td>`).join('')}</tr>`;
+  h += `<tr class="tot"><td>Total</td>${s.cards.map(c => `<td>${totals(c).total}</td>`).join('')}</tr></tbody>`;
+  w.querySelector('table').innerHTML = h;
+  if (s.last && s.last.kind === 'score' && s.last.n !== lastN && lastN !== null){ justCat = s.last.cat; ctx.sfx.place(); if (s.last.bonus) ctx.sfx.win(); }
+  lastN = s.last ? s.last.n : 0;
+}
+}
+</script>
+</body>
+</html>
