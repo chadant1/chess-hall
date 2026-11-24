@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mancala · Game Hall</title>
+<meta name="theme-color" content="#1b1016">
+<link rel="manifest" href="../manifest.webmanifest"><link rel="icon" href="../icons/icon-192.png"><link rel="apple-touch-icon" href="../icons/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/hall.css">
+<style>
+/* Mancala: a carved wooden board with glass beads; your row is at the bottom, your store on the right. */
+.mb{position:relative;width:100%;aspect-ratio:2.25;border-radius:clamp(18px,4vw,44px);background:radial-gradient(120% 140% at 30% 0%,#8a5532,#4a2614 70%);box-shadow:var(--sh),inset 0 2px 0 rgba(255,255,255,.18),inset 0 -6px 14px rgba(0,0,0,.4),inset 0 0 0 3px rgba(227,183,92,.35);padding:3.2%;display:grid;grid-template-columns:1.25fr repeat(6,1fr) 1.25fr;grid-template-rows:1fr 1fr;gap:2.2% 1.6%;user-select:none;-webkit-user-select:none}
+.mb::before{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;background:repeating-linear-gradient(95deg,rgba(255,255,255,.025) 0 6px,transparent 6px 15px)}
+.pit,.store{position:relative;border-radius:50%;align-self:center;background:radial-gradient(circle at 50% 35%,#2a140a,#4b2716 70%,#5e331d);box-shadow:inset 0 6px 12px rgba(0,0,0,.65),0 1px 0 rgba(255,255,255,.12);overflow:visible}
+.pit{aspect-ratio:1;width:100%}
+.store{grid-row:1/3;border-radius:999px;align-self:stretch}
+.pit.mine{cursor:pointer}
+.pit.mine.ok:hover{box-shadow:inset 0 6px 12px rgba(0,0,0,.65),0 0 0 3px rgba(227,183,92,.7)}
+.pit.lit{box-shadow:inset 0 6px 12px rgba(0,0,0,.65),0 0 0 3px rgba(247,205,90,.95),0 0 18px rgba(247,205,90,.5)}
+.pit.src{box-shadow:inset 0 6px 12px rgba(0,0,0,.65),0 0 0 3px rgba(255,255,255,.45)}
+.pit.cap{animation:cap .6s}@keyframes cap{40%{box-shadow:inset 0 6px 12px rgba(0,0,0,.65),0 0 0 4px #e5484d}}
+.bead{position:absolute;width:19%;aspect-ratio:1;border-radius:50%;box-shadow:inset -2px -3px 4px rgba(0,0,0,.35),inset 2px 2px 3px rgba(255,255,255,.55),0 1px 2px rgba(0,0,0,.5);transform:translate(-50%,-50%)}
+.store .bead{width:30%;height:auto}
+.cnt{position:absolute;left:50%;translate:-50% 0;font:800 clamp(12px,1.7vw,17px)/1 Manrope,system-ui,sans-serif;color:#f6e7cf;background:rgba(20,8,4,.55);padding:3px 8px;border-radius:99px;font-variant-numeric:tabular-nums;pointer-events:none}
+.row0 .cnt{bottom:-6%}.row1 .cnt{top:-6%}.store .cnt{top:auto;bottom:7%;font-size:clamp(16px,2.6vw,26px);padding:6px 12px}
+.tip{position:absolute;left:50%;top:50%;translate:-50% -50%;font:800 clamp(10px,1.2vw,12.5px)/1.1 Manrope,system-ui,sans-serif;color:#2a1607;background:#f3cf73;padding:4px 7px;border-radius:8px;white-space:nowrap;pointer-events:none;box-shadow:0 2px 6px rgba(0,0,0,.4);z-index:2}
+.lab{display:flex;justify-content:space-between;color:var(--mut);font-weight:700;font-size:14px;margin:10px 6px 0}
+@media (max-width:600px){.mb{aspect-ratio:1.9}.bead{width:22%}}
+</style>
+</head>
+<body>
+<script src="../shared/peerjs.min.js"></script>
+<script src="../shared/hall.js"></script>
+<script>
+{
+const STORE = [6, 13];
+const own = (i, seat) => seat === 0 ? i >= 0 && i <= 5 : i >= 7 && i <= 12;
+const opp = i => 12 - i;
+function setup({first, opts}){
+  const n = +opts.seeds || 4, pits = Array(14).fill(n); pits[6] = pits[13] = 0;
+  return {pits, turn:first % 2, last:null, n:0, done:false};
+}
+function sow(s, pit){
+  const seat = s.turn; let seeds = s.pits[pit]; s.pits[pit] = 0;
+  let i = pit; const path = [];
+  while (seeds > 0){ i = (i + 1) % 14; if (i === STORE[1 - seat]) continue; s.pits[i]++; seeds--; path.push(i); }
+  let cap = null, extra = false;
+  if (i === STORE[seat]) extra = true;
+  else if (own(i, seat) && s.pits[i] === 1 && s.pits[opp(i)] > 0){
+    const n = s.pits[opp(i)] + 1; cap = {at:i, from:opp(i), n};
+    s.pits[STORE[seat]] += n; s.pits[i] = 0; s.pits[opp(i)] = 0;
+  }
+  let sweep = null;
+  const empty0 = [0,1,2,3,4,5].every(k => !s.pits[k]), empty1 = [7,8,9,10,11,12].every(k => !s.pits[k]);
+  if (empty0 || empty1){
+    sweep = [0, 0];
+    for (let k = 0; k < 6; k++){ sweep[0] += s.pits[k]; s.pits[6] += s.pits[k]; s.pits[k] = 0; sweep[1] += s.pits[k + 7]; s.pits[13] += s.pits[k + 7]; s.pits[k + 7] = 0; }
+    s.done = true;
+  }
+  s.n++; s.last = {seat, pit, path, cap, extra, sweep, n:s.n};
+  if (!extra && !s.done) s.turn = 1 - seat;
+  return s;
+}
+const moves = s => s.done ? [] : (s.turn === 0 ? [0,1,2,3,4,5] : [7,8,9,10,11,12]).filter(i => s.pits[i] > 0);
+function preview(s, pit){ const t = sow(Hall.clone(s), pit); return t.last; }
+function mm(s, depth, me, a, b){
+  if (s.done || depth === 0) return s.pits[STORE[me]] - s.pits[STORE[1 - me]] + (s.done ? (s.pits[STORE[me]] > s.pits[STORE[1 - me]] ? 500 : s.pits[STORE[me]] < s.pits[STORE[1 - me]] ? -500 : 0) : 0);
+  const ms = moves(s), maxi = s.turn === me;
+  let best = maxi ? -1e9 : 1e9;
+  for (const m of ms){
+    const v = mm(sow(Hall.clone(s), m), depth - 1, me, a, b);
+    if (maxi){ if (v > best) best = v; if (v > a) a = v; } else { if (v < best) best = v; if (v < b) b = v; }
+    if (a >= b) break;
+  }
+  return best;
+}
+let CTX = null, disp = null, lastN = null, animT = 0, animating = false;
+Hall.run({
+  id:'mancala', name:'Mancala', min:2, max:2, colors:['#e3b75c', '#7fc3e8'], layout:'wide', resign:true,
+  icon:'<svg viewBox="0 0 32 32"><rect x="2" y="8" width="28" height="16" rx="8" fill="#7a4524"/><circle cx="11" cy="16" r="4" fill="#3a1d0e"/><circle cx="21" cy="16" r="4" fill="#3a1d0e"/><circle cx="10" cy="15.5" r="1.6" fill="#7fc3e8"/><circle cx="12.2" cy="16.8" r="1.6" fill="#e3b75c"/><circle cx="21" cy="16" r="1.6" fill="#e5484d"/></svg>',
+  tagline:'Sow your seeds around the board and fill your store.',
+  hintable:true, hintLabel:'Show what each pit will do', hintShort:'Hints', handWord:'pits',
+  options:[{key:'seeds', label:'Seeds per pit', def:4, choices:[[3, '3 · quick'], [4, '4 · classic'], [5, '5'], [6, '6 · long']]}],
+  credit:'Rules: Kalah, the most common Mancala game.',
+  rules:`<p>Each player has six pits in the row nearest them and a big store on their right. The player with the most seeds in their store at the end wins.</p>
+  <h3>Your turn</h3><ul><li>Pick up every seed in one of your pits.</li><li>Going counter-clockwise, drop one seed in each pit after it, including your own store but never your opponent's.</li></ul>
+  <h3>Bonus rules</h3><ul><li><b>Free turn:</b> if your last seed lands in your store, go again.</li><li><b>Capture:</b> if your last seed lands in an empty pit on your side and the pit across from it has seeds, take both into your store.</li></ul>
+  <h3>The end</h3><p>When one side runs out of seeds, the other player moves all the seeds left on their side into their store, and the stores are counted.</p>
+  <h3>Hints</h3><p>With hints on, your pits show which ones give a free turn or a capture.</p>`,
+  setup,
+  current:s => s.done ? null : s.turn,
+  act(s, seat, a){
+    if (seat !== s.turn) throw new Error('It’s not your turn');
+    const pit = a && +a.pit;
+    if (!own(pit, seat) || !s.pits[pit]) throw new Error('Pick one of your pits that has seeds');
+    return sow(s, pit);
+  },
+  over(s){
+    if (!s.done) return null;
+    const a = s.pits[6], b = s.pits[13];
+    return a === b ? {winners:[], text:`${a} seeds each`} : {winners:[a > b ? 0 : 1], text:`${Math.max(a, b)} seeds to ${Math.min(a, b)}`};
+  },
+  cpu(s, seat, level){
+    const ms = moves(s);
+    if (level === 0 && Math.random() < .4) return {pit:ms[Math.floor(Math.random() * ms.length)]};
+    const depth = [2, 4, 6, 8][level];
+    let best = ms[0], bv = -1e9;
+    for (const m of ms){ const v = mm(sow(Hall.clone(s), m), depth - 1, seat, -1e9, 1e9) + (level < 2 ? Math.random() * 1.5 : 0); if (v > bv){ bv = v; best = m; } }
+    return {pit:best};
+  },
+  cpuDelay:() => animating ? 900 + 150 * ((CTX && CTX.state.last && CTX.state.last.path.length) || 0) : 800,
+  describe(a, prev, next){ const l = next.last; return `sowed ${l.path.length} from pit ${(l.pit % 7) + 1}` + (l.cap ? `, captured ${l.cap.n}` : '') + (l.extra ? ', free turn!' : ''); },
+  score(s, i){ return {v:s.pits[STORE[i]], l:'in store'}; },
+  status(s, {actor}){
+    if (!s || s.done) return '';
+    if (s.last && s.last.extra && s.last.seat === s.turn) return 'Free turn! Go again';
+    return actor != null ? 'Tap one of your pits' : '';
+  },
+  render(ctx, stage){
+    CTX = ctx;
+    const s = ctx.state, me = ctx.viewer === 1 ? 1 : 0;
+    let mb = stage.querySelector('.mb');
+    if (!mb || +mb.dataset.me !== me){
+      stage.innerHTML = '<div class="mb"></div><div class="lab"><span class="lt0"></span><span class="lt1"></span></div>';
+      mb = stage.querySelector('.mb'); mb.dataset.me = me; disp = null; lastN = null;
+      const top = me === 0 ? [12, 11, 10, 9, 8, 7] : [5, 4, 3, 2, 1, 0], bot = me === 0 ? [0, 1, 2, 3, 4, 5] : [7, 8, 9, 10, 11, 12];
+      let h = `<div class="store" data-i="${STORE[1 - me]}" style="grid-column:1"></div>`;
+      top.forEach((i, k) => { h += `<div class="pit row1" data-i="${i}" style="grid-column:${k + 2};grid-row:1"></div>`; });
+      h += `<div class="store" data-i="${STORE[me]}" style="grid-column:8"></div>`;
+      bot.forEach((i, k) => { h += `<div class="pit row0" data-i="${i}" style="grid-column:${k + 2};grid-row:2"></div>`; });
+      mb.innerHTML = h;
+      mb.addEventListener('click', e => {
+        const p = e.target.closest('.pit'); if (!p || animating || !CTX || CTX.actor == null) return;
+        const i = +p.dataset.i;
+        if (!own(i, CTX.actor)){ CTX.sfx.bad(); CTX.toast('Pick a pit on your own side'); return; }
+        if (!CTX.state.pits[i]){ CTX.sfx.bad(); CTX.toast('That pit is empty'); p.classList.add('shake'); setTimeout(() => p.classList.remove('shake'), 350); return; }
+        CTX.act({pit:i});
+      });
+    }
+    const whose = p => !p ? '' : p.name === 'You' ? 'Your store' : (p.name || 'Player') + '’s store';
+    stage.querySelector('.lt0').textContent = '← ' + whose(ctx.players[1 - me]);
+    stage.querySelector('.lt1').textContent = whose(ctx.players[me]) + ' →';
+    const l = s.last;
+    if (l && l.n !== lastN && lastN !== null && ctx.prev && ctx.anim){
+      clearInterval(animT); animating = true;
+      disp = ctx.prev.pits.slice(); disp[l.pit] = 0; let k = 0;
+      draw(mb, disp, ctx, l.pit);
+      animT = setInterval(() => {
+        if (k < l.path.length){ disp[l.path[k]]++; ctx.sfx.seed(k % 8); draw(mb, disp, ctx, l.pit, l.path[k]); k++; return; }
+        clearInterval(animT); animating = false; disp = null;
+        if (l.cap){ ctx.sfx.capture(); mb.querySelectorAll(`[data-i="${l.cap.at}"],[data-i="${l.cap.from}"]`).forEach(e => e.classList.add('cap')); }
+        else if (l.extra) ctx.sfx.good();
+        draw(mb, CTX.state.pits, CTX);
+      }, 150);
+    } else if (!animating) draw(mb, s.pits, ctx);
+    lastN = l ? l.n : 0;
+  },
+  endDelay:1600
+});
+const COLORS = ['#e3b75c', '#7fc3e8', '#e5484d', '#9be29b', '#c79bff', '#f6ecef', '#ff9a52'];
+function beadPos(i, k, store){
+  // a gentle spiral, jittered per pit so every pit looks hand-filled
+  const a = k * 2.4 + i * 1.7, r = (store ? 9 : 7) * Math.sqrt(k) + (k ? 6 : 0);
+  return [50 + Math.cos(a) * Math.min(r, store ? 30 : 30), 50 + Math.sin(a) * Math.min(r, store ? 40 : 30)];
+}
+function draw(mb, pits, ctx, src, at){
+  const s = ctx.state, act = ctx.actor;
+  const tips = {};
+  if (ctx.hints && act != null && !animating) for (const m of moves(s)){ const l = preview(s, m); if (l.extra) tips[m] = 'Free turn'; else if (l.cap) tips[m] = 'Capture ' + l.cap.n; }
+  mb.querySelectorAll('[data-i]').forEach(el => {
+    const i = +el.dataset.i, n = pits[i], store = el.classList.contains('store');
+    const show = Math.min(n, store ? 40 : 18);
+    let h = '';
+    for (let k = 0; k < show; k++){ const [x, y] = beadPos(i, k, store); h += `<i class="bead" style="left:${x}%;top:${y}%;background:radial-gradient(circle at 35% 30%,#fff8,${COLORS[(i * 7 + k * 3) % COLORS.length]} 55%)"></i>`; }
+    h += `<span class="cnt">${n}</span>`;
+    if (tips[i]) h += `<span class="tip">${tips[i]}</span>`;
+    el.innerHTML = h;
+    el.classList.toggle('mine', act != null && own(i, act));
+    el.classList.toggle('ok', act != null && own(i, act) && n > 0);
+    el.classList.toggle('src', i === src);
+    el.classList.toggle('lit', i === at);
+  });
+}
+}
+</script>
+</body>
+</html>

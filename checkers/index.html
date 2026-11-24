@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Checkers · Game Hall</title>
+<meta name="theme-color" content="#1b1016">
+<link rel="manifest" href="../manifest.webmanifest"><link rel="icon" href="../icons/icon-192.png"><link rel="apple-touch-icon" href="../icons/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/hall.css">
+<style>
+/* Checkers: a walnut board with lacquered red and black discs; kings wear a brass crown. */
+.frame{padding:10px;border-radius:16px;background:linear-gradient(150deg,var(--wood1),var(--wood2));box-shadow:var(--sh),inset 0 1px 0 rgba(255,255,255,.2),inset 0 0 0 2px rgba(227,183,92,.4)}
+.cb{position:relative;width:calc(var(--bs) - 20px);aspect-ratio:1;border-radius:5px;overflow:hidden;user-select:none;-webkit-user-select:none;touch-action:manipulation;cursor:pointer}
+.sqs{position:absolute;inset:0;display:grid;grid-template:repeat(8,1fr)/repeat(8,1fr)}
+.sqs div{background:#ecd4ad;position:relative}.sqs div.d{background:#7a4f33}
+.sqs::after{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(135deg,rgba(255,255,255,.1),transparent 40%,transparent 60%,rgba(0,0,0,.12))}
+.lay{position:absolute;inset:0;pointer-events:none}
+.h{position:absolute;width:12.5%;height:12.5%}
+.h.last{background:rgba(247,205,90,.32)}
+.h.sel{background:rgba(247,205,90,.62)}
+.h.path{background:rgba(247,205,90,.45)}
+.h.can{box-shadow:inset 0 0 0 calc(var(--bs)*.006) rgba(247,205,90,.9)}
+.h.dot::after{content:"";position:absolute;inset:37%;border-radius:50%;background:rgba(247,215,120,.75);box-shadow:0 0 0 3px rgba(0,0,0,.18)}
+.h.bad{animation:bad .4s}@keyframes bad{30%{background:rgba(229,72,77,.55)}}
+.pc{position:absolute;left:0;top:0;width:12.5%;height:12.5%;transition:transform .22s cubic-bezier(.2,.8,.2,1),opacity .3s;pointer-events:none}
+.pc i{position:absolute;inset:11%;border-radius:50%;box-shadow:0 calc(var(--bs)*.007) calc(var(--bs)*.008) rgba(0,0,0,.45),inset 0 calc(var(--bs)*-.006) 0 rgba(0,0,0,.35),inset 0 0 0 calc(var(--bs)*.004) rgba(255,255,255,.12)}
+.pc i::before{content:"";position:absolute;inset:18%;border-radius:50%;box-shadow:inset 0 0 0 calc(var(--bs)*.003) rgba(255,255,255,.22),0 0 0 calc(var(--bs)*.003) rgba(0,0,0,.25)}
+.pc.c0 i{background:radial-gradient(circle at 35% 30%,#5a4d50,#211a1c 65%)}
+.pc.c1 i{background:radial-gradient(circle at 35% 30%,#ff6f6a,#b3242c 65%)}
+.pc svg{position:absolute;inset:27%;width:46%;height:46%;opacity:0;transition:opacity .3s;filter:drop-shadow(0 1px 1px rgba(0,0,0,.5))}
+.pc.k svg{opacity:1}
+.pc.gone{opacity:0;transform-origin:center}
+</style>
+</head>
+<body>
+<script src="../shared/peerjs.min.js"></script>
+<script src="../shared/hall.js"></script>
+<script>
+{
+const CROWN = '<svg viewBox="0 0 24 24"><path d="M3 18h18l-1.5-10-4.5 4-3-6-3 6-4.5-4z" fill="#f2c75c" stroke="#7a5410" stroke-width="1.2" stroke-linejoin="round"/></svg>';
+const rc = sq => [sq >> 3, sq & 7];
+const nm = sq => 'abcdefgh'[sq & 7] + (8 - (sq >> 3));
+const DIRS = {0:[[-1,-1],[-1,1]], 1:[[1,-1],[1,1]]};
+const ALL = [[-1,-1],[-1,1],[1,-1],[1,1]];
+function setup({first, opts}){
+  const b = Array(64).fill(null); let id = 0;
+  for (let sq = 0; sq < 64; sq++){ const [r, c] = rc(sq); if ((r + c) % 2 !== 1) continue; if (r <= 2) b[sq] = {id:id++, c:1, k:false}; else if (r >= 5) b[sq] = {id:id++, c:0, k:false}; }
+  return {b, turn:first % 2 === 0 ? 0 : 1, last:null, quiet:0, plies:0, forced:opts.forced !== false};
+}
+function jumps(b, from, pc, opts){
+  const out = [];
+  const dfs = (sq, path, caps) => {
+    let ext = false;
+    for (const [dr, dc] of pc.k ? ALL : DIRS[pc.c]){
+      const [r, c] = rc(sq), mr = r + dr, mc = c + dc, lr = r + 2 * dr, lc = c + 2 * dc;
+      if (lr < 0 || lr > 7 || lc < 0 || lc > 7) continue;
+      const mid = mr * 8 + mc, land = lr * 8 + lc, m = b[mid];
+      if (!m || m.c === pc.c || caps.includes(mid) || (b[land] && land !== from)) continue;
+      ext = true;
+      const crowned = !pc.k && (pc.c === 0 ? lr === 0 : lr === 7);
+      if (crowned) out.push({path:path.concat(land), caps:caps.concat(mid)});
+      else dfs(land, path.concat(land), caps.concat(mid));
+    }
+    if (!ext && caps.length) out.push({path, caps});
+  };
+  dfs(from, [from], []);
+  return out;
+}
+function legal(s, forced){
+  const caps = [], steps = [];
+  for (let sq = 0; sq < 64; sq++){
+    const pc = s.b[sq]; if (!pc || pc.c !== s.turn) continue;
+    caps.push(...jumps(s.b, sq, pc));
+    for (const [dr, dc] of pc.k ? ALL : DIRS[pc.c]){
+      const [r, c] = rc(sq), nr = r + dr, nc = c + dc;
+      if (nr < 0 || nr > 7 || nc < 0 || nc > 7) continue;
+      if (!s.b[nr * 8 + nc]) steps.push({path:[sq, nr * 8 + nc], caps:[]});
+    }
+  }
+  return forced && caps.length ? caps : caps.concat(steps);
+}
+function apply(s, mv){
+  const from = mv.path[0], to = mv.path[mv.path.length - 1], pc = s.b[from];
+  s.b[from] = null; for (const c of mv.caps) s.b[c] = null;
+  const [r] = rc(to); let crowned = false;
+  if (!pc.k && (pc.c === 0 ? r === 0 : r === 7)){ pc.k = true; crowned = true; }
+  s.b[to] = pc;
+  s.quiet = mv.caps.length || crowned ? 0 : s.quiet + 1; s.plies++;
+  s.last = {path:mv.path, caps:mv.caps, id:pc.id, crowned, n:s.plies};
+  s.turn = 1 - s.turn;
+  return s;
+}
+const same = (a, b) => a.length === b.length && a.every((x, i) => x === b[i]);
+function evalS(s, me){
+  let v = 0;
+  for (let sq = 0; sq < 64; sq++){
+    const p = s.b[sq]; if (!p) continue;
+    const [r, c] = rc(sq);
+    let x = p.k ? 155 : 100;
+    if (!p.k) x += (p.c === 0 ? 7 - r : r) * 4 + ((p.c === 0 ? r === 7 : r === 0) ? 6 : 0);
+    if (c >= 2 && c <= 5 && r >= 2 && r <= 5) x += 5;
+    v += p.c === me ? x : -x;
+  }
+  return v;
+}
+function search(s, depth, a, bta, forced){
+  const ms = legal(s, forced);
+  if (!ms.length) return -100000 - depth;
+  if (depth === 0) return evalS(s, s.turn);
+  let best = -1e9;
+  for (const m of ms){
+    const n = apply(Hall.clone(s), m), v = -search(n, depth - 1, -bta, -a, forced);
+    if (v > best) best = v; if (v > a) a = v; if (a >= bta) break;
+  }
+  return best;
+}
+Hall.run({
+  id:'checkers', name:'Checkers', min:2, max:2, seatNames:['Black', 'Red'], colors:['#2c2426', '#c5303a'], resign:true,
+  icon:'<svg viewBox="0 0 32 32"><circle cx="16" cy="18" r="11" fill="#7a1d24"/><circle cx="16" cy="15" r="11" fill="#d23a43"/><circle cx="16" cy="15" r="7" fill="none" stroke="#ff9d97" stroke-width="1.5" opacity=".6"/></svg>',
+  tagline:'Jump your way across the board. Black moves first.',
+  hintable:true, hintLabel:'Show my moves', hintShort:'Hints', handWord:'pieces',
+  options:[{key:'forced', label:'Jumping', def:true, choices:[[true, 'Jumps required'], [false, 'Jumps optional']], note:'Official rules make you jump when you can.'}],
+  credit:'Checkers rules: American / English draughts.',
+  rules:`<p>Move one piece diagonally forward to an empty dark square. Black moves first.</p>
+  <h3>Jumping</h3><ul><li>Jump over an opponent's piece into the empty square beyond it to capture it.</li><li>If you land where you can jump again, keep going in the same turn.</li><li>With <b>Jumps required</b> (official rules), you must jump when you can.</li></ul>
+  <h3>Kings</h3><p>Reach the far side and your piece is crowned. Kings move and jump forwards and backwards.</p>
+  <h3>Winning</h3><p>Capture all your opponent's pieces, or leave them with no legal move. If 40 moves go by on each side with no capture or crowning, it's a draw.</p>
+  <h3>Playing here</h3><p>Tap a piece, then tap where it goes. For a double jump, tap each landing square. With hints on, gold dots show where you can go.</p>`,
+  setup,
+  current:s => s.turn,
+  act(s, seat, a){
+    if (seat !== s.turn) throw new Error('It’s not your turn');
+    const ms = legal(s, s.forced);
+    const mv = a && Array.isArray(a.path) && ms.find(m => same(m.path, a.path));
+    if (!mv){ const any = legal(s, false).some(m => same(m.path, a.path || [])); throw new Error(any ? 'You must jump when you can' : 'That move isn’t allowed'); }
+    return apply(s, mv);
+  },
+  over(s){
+    if (!legal(s, false).length){ const left = s.b.some(p => p && p.c === s.turn); return {winners:[1 - s.turn], text:left ? 'by leaving no legal moves' : 'by capturing every piece'}; }
+    if (s.quiet >= 80) return {winners:[], text:'40 moves each with no capture or crowning'};
+    return null;
+  },
+  cpu(s, seat, level){
+    const forced = s.forced, ms = legal(s, forced);
+    if (level === 0 && Math.random() < .35) return {path:ms[Math.floor(Math.random() * ms.length)].path};
+    const depth = [2, 4, 6, 8][level] || 4;
+    let best = null, bv = -1e9;
+    for (const m of ms.sort(() => Math.random() - .5)){
+      const v = -search(apply(Hall.clone(s), m), depth - 1, -1e9, 1e9, forced) + (level < 2 ? Math.random() * 30 : 0);
+      if (v > bv){ bv = v; best = m; }
+    }
+    return {path:best.path};
+  },
+  describe(a, prev, next){ const l = next.last; return nm(l.path[0]) + (l.caps.length ? ' jumped to ' : ' to ') + nm(l.path[l.path.length - 1]) + (l.caps.length > 1 ? ' (' + l.caps.length + ' pieces!)' : '') + (l.crowned ? ', crowned king' : ''); },
+  score(s, i){ return {v:s.b.filter(p => p && p.c === i).length, l:'pieces'}; },
+  status(s, {actor}){
+    if (actor == null || !s) return '';
+    const caps = legal(s, false).filter(m => m.caps.length);
+    return caps.length ? (s.forced ? 'You have a jump, and you must take it' : 'You have a jump available') : '';
+  },
+  render
+});
+let els = {}, sel = null, prefix = null, lastN = null, flipped = null, CTX = null;
+function render(ctx, stage){
+  CTX = ctx;
+  let cb = stage.querySelector('.cb');
+  const flip = ctx.viewer === 1;
+  if (!cb){
+    stage.innerHTML = '<div class="frame"><div class="cb"><div class="sqs"></div><div class="lay hl"></div><div class="lay pcs"></div></div></div>';
+    cb = stage.querySelector('.cb'); els = {}; flipped = null; lastN = null;
+    cb.addEventListener('click', onClick);
+  }
+  if (flip !== flipped){
+    flipped = flip;
+    cb.querySelector('.sqs').innerHTML = Array.from({length:64}, (_, i) => { const y = i >> 3, x = i & 7; return `<div class="${(x + y) % 2 ? 'd' : ''}"></div>`; }).join('');
+  }
+  const s = ctx.state;
+  const pos = sq => { const [r, c] = rc(sq); return flip ? [7 - c, 7 - r] : [c, r]; };
+  const tf = sq => { const [x, y] = pos(sq); return `translate(${x * 100}%,${y * 100}%)`; };
+  // pieces
+  const pcs = cb.querySelector('.pcs'), seen = {};
+  const animNew = s.last && s.last.n !== lastN && lastN !== null && ctx.anim;
+  for (let sq = 0; sq < 64; sq++){
+    const p = s.b[sq]; if (!p) continue;
+    seen[p.id] = 1;
+    let el = els[p.id];
+    if (!el){ el = els[p.id] = document.createElement('div'); el.innerHTML = '<i></i>' + CROWN; pcs.appendChild(el); el.style.transition = 'none'; el.style.transform = tf(sq); void el.offsetWidth; el.style.transition = ''; }
+    el.className = 'pc c' + p.c + (p.k ? ' k' : '');
+    if (animNew && s.last.id === p.id && s.last.path.length > 2){
+      el.style.transition = 'none';
+      const frames = s.last.path.map(q => ({transform:tf(q)}));
+      el.style.transform = tf(sq);
+      el.animate(frames, {duration:200 * (s.last.path.length - 1), easing:'ease-in-out'});
+      requestAnimationFrame(() => { el.style.transition = ''; });
+    } else el.style.transform = tf(sq);
+  }
+  for (const id in els) if (!seen[id]){ const el = els[id]; delete els[id]; el.classList.add('gone'); setTimeout(() => el.remove(), animNew ? 200 * (s.last.path.length - 1) + 300 : 300); }
+  if (animNew){ s.last.caps.length ? ctx.sfx.capture() : ctx.sfx.move(); if (s.last.crowned) setTimeout(() => ctx.sfx.good(), 250); }
+  lastN = s.last ? s.last.n : 0;
+  if (ctx.actor == null){ sel = null; prefix = null; }
+  drawHL(ctx, cb, pos);
+}
+function drawHL(ctx, cb, pos){
+  const s = ctx.state; let h = '';
+  const add = (sq, cls) => { const [x, y] = pos(sq); h += `<div class="h ${cls}" style="left:${x * 12.5}%;top:${y * 12.5}%"></div>`; };
+  if (s.last){ add(s.last.path[0], 'last'); add(s.last.path[s.last.path.length - 1], 'last'); }
+  const ms = ctx.actor != null ? legal(s, s.forced) : [];
+  if (sel != null){
+    add(sel, 'sel');
+    for (const q of prefix.slice(1)) add(q, 'path');
+    if (ctx.hints){ const nx = new Set(ms.filter(m => prefix.every((q, i) => m.path[i] === q) && m.path.length > prefix.length).map(m => m.path[prefix.length])); nx.forEach(q => add(q, 'dot')); }
+  } else if (ctx.hints && ctx.actor != null){ new Set(ms.map(m => m.path[0])).forEach(q => add(q, 'can')); }
+  cb.querySelector('.hl').innerHTML = h;
+}
+function sqAt(e, cb){
+  const r = cb.getBoundingClientRect(); let x = Math.floor((e.clientX - r.left) / r.width * 8), y = Math.floor((e.clientY - r.top) / r.height * 8);
+  if (x < 0 || x > 7 || y < 0 || y > 7) return null;
+  return flipped ? (7 - y) * 8 + (7 - x) : y * 8 + x;
+}
+function onClick(e){
+  const ctx = CTX, cb = e.currentTarget; if (!ctx || ctx.actor == null) return;
+  const s = ctx.state, sq = sqAt(e, cb); if (sq == null) return;
+  const forced = s.forced, ms = legal(s, forced);
+  const pos = q => { const [r, c] = rc(q); return flipped ? [7 - c, 7 - r] : [c, r]; };
+  const p = s.b[sq];
+  if (p && p.c === s.turn && (sel == null || prefix.length === 1)){
+    if (sel === sq){ sel = null; prefix = null; }
+    else if (ms.some(m => m.path[0] === sq)){ sel = sq; prefix = [sq]; }
+    else { ctx.sfx.bad(); ctx.toast(legal(s, false).some(m => m.path[0] === sq) ? 'Another piece has a jump you must take' : 'That piece can’t move'); sel = null; prefix = null; }
+    drawHL(ctx, cb, pos); return;
+  }
+  if (sel == null) return;
+  const cands = ms.filter(m => prefix.every((q, i) => m.path[i] === q));
+  const step = cands.filter(m => m.path[prefix.length] === sq);
+  let done = null;
+  if (step.length){
+    const np = prefix.concat(sq), full = step.find(m => m.path.length === np.length);
+    if (full) done = full; else { prefix = np; drawHL(ctx, cb, pos); return; }
+  } else {
+    const ends = cands.filter(m => m.path[m.path.length - 1] === sq);
+    if (ends.length === 1) done = ends[0];
+  }
+  if (done){ sel = null; prefix = null; ctx.act({path:done.path}); return; }
+  ctx.sfx.bad();
+  const anyJump = legal(s, false).filter(m => m.caps.length).length;
+  ctx.toast(forced && anyJump && legal(s, false).some(m => m.path[0] === sel && m.path[m.path.length - 1] === sq) ? 'You must jump when you can' : 'That move isn’t allowed');
+  const d = document.createElement('div'); const [x, y] = pos(sq); d.className = 'h bad'; d.style.left = x * 12.5 + '%'; d.style.top = y * 12.5 + '%'; cb.querySelector('.hl').appendChild(d); setTimeout(() => d.remove(), 450);
+}
+}
+</script>
+</body>
+</html>

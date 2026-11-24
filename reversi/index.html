@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Reversi · Game Hall</title>
+<meta name="theme-color" content="#1b1016">
+<link rel="manifest" href="../manifest.webmanifest"><link rel="icon" href="../icons/icon-192.png"><link rel="apple-touch-icon" href="../icons/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/hall.css">
+<style>
+/* Reversi: a deep green baize table in a walnut frame; discs flip on their edge. */
+.frame{padding:10px;border-radius:16px;background:linear-gradient(150deg,var(--wood1),var(--wood2));box-shadow:var(--sh),inset 0 1px 0 rgba(255,255,255,.2),inset 0 0 0 2px rgba(227,183,92,.4)}
+.rb{position:relative;width:calc(var(--bs) - 20px);aspect-ratio:1;border-radius:5px;overflow:hidden;background:radial-gradient(circle at 40% 30%,#1f7a55,#0f4a33 75%);display:grid;grid-template:repeat(8,1fr)/repeat(8,1fr);user-select:none;-webkit-user-select:none;touch-action:manipulation}
+.rb::after{content:"";position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(45deg,rgba(255,255,255,.018) 0 2px,transparent 2px 5px)}
+.c{position:relative;border-right:1px solid rgba(0,0,0,.35);border-bottom:1px solid rgba(0,0,0,.35);cursor:pointer}
+.c.dotc::before{content:"";position:absolute;left:-6%;top:-6%;width:12%;height:12%;border-radius:50%;background:rgba(0,0,0,.6);z-index:1}
+.c.ok:hover{background:rgba(255,255,255,.08)}
+.c.last{background:rgba(247,205,90,.2)}
+.hint{position:absolute;inset:32%;border-radius:50%;border:2px dashed rgba(255,240,200,.75);display:grid;place-items:center;font:800 clamp(10px,calc(var(--bs)*.022),15px)/1 Manrope,system-ui,sans-serif;color:#fff3cf}
+.dk{position:absolute;inset:9%;border-radius:50%;transition:background .1s;box-shadow:0 calc(var(--bs)*.006) calc(var(--bs)*.007) rgba(0,0,0,.5)}
+.dk.b{background:radial-gradient(circle at 35% 30%,#555,#121212 65%)}
+.dk.w{background:radial-gradient(circle at 35% 30%,#fff,#d9d4cc 70%)}
+.dk.new{animation:drop .3s cubic-bezier(.2,.9,.3,1.3)}
+.dk.flip{animation:flip .5s ease-in-out}
+@keyframes drop{from{transform:scale(1.5);opacity:0}}
+@keyframes flip{0%{transform:scaleX(1)}50%{transform:scaleX(.05) scaleY(1.08)}100%{transform:scaleX(1)}}
+.pass{margin-top:12px;display:flex;gap:10px;align-items:center;justify-content:center}
+</style>
+</head>
+<body>
+<script src="../shared/peerjs.min.js"></script>
+<script src="../shared/hall.js"></script>
+<script>
+{
+const D8 = [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
+const nm = sq => 'abcdefgh'[sq & 7] + (8 - (sq >> 3));
+function setup({first}){
+  const b = Array(64).fill(null); b[27] = 1; b[28] = 0; b[35] = 0; b[36] = 1;
+  return {b, turn:first % 2, last:null, n:0, passes:0};
+}
+function flips(b, sq, c){
+  if (b[sq] != null) return [];
+  const r = sq >> 3, k = sq & 7, out = [];
+  for (const [dr, dc] of D8){
+    const line = []; let y = r + dr, x = k + dc;
+    while (y >= 0 && y < 8 && x >= 0 && x < 8 && b[y * 8 + x] === 1 - c){ line.push(y * 8 + x); y += dr; x += dc; }
+    if (line.length && y >= 0 && y < 8 && x >= 0 && x < 8 && b[y * 8 + x] === c) out.push(...line);
+  }
+  return out;
+}
+function moves(b, c){ const m = []; for (let sq = 0; sq < 64; sq++){ const f = flips(b, sq, c); if (f.length) m.push([sq, f]); } return m; }
+function place(s, sq, f){ s.b[sq] = s.turn; for (const q of f) s.b[q] = s.turn; s.n++; s.last = {sq, flips:f, n:s.n, seat:s.turn}; s.passes = 0; s.turn = 1 - s.turn; return s; }
+const W = [120,-20,20,5,5,20,-20,120,-20,-40,-5,-5,-5,-5,-40,-20,20,-5,15,3,3,15,-5,20,5,-5,3,3,3,3,-5,5,5,-5,3,3,3,3,-5,5,20,-5,15,3,3,15,-5,20,-20,-40,-5,-5,-5,-5,-40,-20,120,-20,20,5,5,20,-20,120];
+function evalB(b, me){
+  let v = 0, n = 0;
+  for (let i = 0; i < 64; i++){ if (b[i] == null) continue; n++; v += b[i] === me ? W[i] : -W[i]; }
+  const mob = moves(b, me).length - moves(b, 1 - me).length;
+  return v + mob * 8;
+}
+function ab(b, turn, me, depth, a, bt, passed){
+  const ms = moves(b, turn);
+  if (!ms.length){
+    if (passed || !moves(b, 1 - turn).length){ let d = 0; for (const x of b) if (x != null) d += x === me ? 1 : -1; return d * 1000; }
+    return ab(b, 1 - turn, me, depth, a, bt, true);
+  }
+  if (depth === 0) return evalB(b, me);
+  const maxi = turn === me; let best = maxi ? -1e9 : 1e9;
+  for (const [sq, f] of ms){
+    const nb = b.slice(); nb[sq] = turn; for (const q of f) nb[q] = turn;
+    const v = ab(nb, 1 - turn, me, depth - 1, a, bt, false);
+    if (maxi){ if (v > best) best = v; if (v > a) a = v; } else { if (v < best) best = v; if (v < bt) bt = v; }
+    if (a >= bt) break;
+  }
+  return best;
+}
+const count = (b, c) => b.filter(x => x === c).length;
+let CTX = null, shownB = null, lastN = null;
+Hall.run({
+  id:'reversi', name:'Reversi', min:2, max:2, seatNames:['Black', 'White'], colors:['#1c1c1c', '#efeae2'], resign:true,
+  icon:'<svg viewBox="0 0 32 32"><rect x="2" y="2" width="28" height="28" rx="5" fill="#16603f"/><circle cx="11" cy="11" r="6" fill="#111"/><circle cx="21" cy="21" r="6" fill="#111"/><circle cx="21" cy="11" r="6" fill="#f2efe8"/><circle cx="11" cy="21" r="6" fill="#f2efe8"/></svg>',
+  tagline:'Trap your opponent’s discs between yours to flip them. Black moves first.',
+  hintable:true, hintLabel:'Show where I can play', hintShort:'Hints', handWord:'board',
+  credit:'Reversi, the classic disc-flipping game.',
+  rules:`<p>Black and White take turns placing one disc each. Black goes first. Whoever has more discs when the board is full, or when nobody can move, wins.</p>
+  <h3>Flipping</h3><p>You must place your disc so that one or more of your opponent's discs end up in a straight line (across, up and down, or diagonal) between your new disc and another of yours. All of those discs flip to your colour.</p>
+  <h3>Passing</h3><p>If you have no move that flips anything, you pass. If neither player can move, the game ends.</p>
+  <h3>Tips</h3><ul><li>Corners can never be flipped, so they're valuable.</li><li>The squares right next to an empty corner are risky.</li></ul>
+  <h3>Hints</h3><p>With hints on, dashed rings show where you can play and how many discs each move flips.</p>`,
+  setup,
+  current:s => (moves(s.b, 0).length || moves(s.b, 1).length) ? s.turn : null,
+  act(s, seat, a){
+    if (seat !== s.turn) throw new Error('It’s not your turn');
+    if (a && a.pass){
+      if (moves(s.b, seat).length) throw new Error('You can still play, so you can’t pass');
+      s.passes++; s.n++; s.last = {pass:true, n:s.n, seat}; s.turn = 1 - seat; return s;
+    }
+    const sq = a && +a.sq, f = sq >= 0 && sq < 64 ? flips(s.b, sq, seat) : [];
+    if (!f.length) throw new Error(s.b[sq] != null ? 'That square is taken' : 'That move wouldn’t flip any discs');
+    return place(s, sq, f);
+  },
+  over(s){
+    if (moves(s.b, 0).length || moves(s.b, 1).length) return null;
+    const a = count(s.b, 0), b = count(s.b, 1);
+    return a === b ? {winners:[], text:`${a} discs each`} : {winners:[a > b ? 0 : 1], text:`${Math.max(a, b)} discs to ${Math.min(a, b)}`};
+  },
+  cpu(s, seat, level){
+    const ms = moves(s.b, seat);
+    if (!ms.length) return {pass:true};
+    if (level === 0 && Math.random() < .45) return {sq:ms[Math.floor(Math.random() * ms.length)][0]};
+    const depth = [1, 2, 4, 5][level];
+    let best = ms[0][0], bv = -1e9;
+    for (const [sq, f] of ms){
+      const nb = s.b.slice(); nb[sq] = seat; for (const q of f) nb[q] = seat;
+      const v = ab(nb, 1 - seat, seat, depth - 1, -1e9, 1e9, false) + (level < 2 ? Math.random() * 25 : 0);
+      if (v > bv){ bv = v; best = sq; }
+    }
+    return {sq:best};
+  },
+  describe(a, prev, next){ const l = next.last; return l.pass ? 'had no move and passed' : `played ${nm(l.sq)}, flipped ${l.flips.length}`; },
+  score(s, i){ return {v:count(s.b, i), l:'discs'}; },
+  status(s, {actor}){
+    if (!s) return '';
+    if (s.last && s.last.pass) return 'The last player had no move and passed';
+    if (actor != null && !moves(s.b, actor).length) return 'You have no moves, so you must pass';
+    return '';
+  },
+  render(ctx, stage){
+    CTX = ctx;
+    const s = ctx.state;
+    let rb = stage.querySelector('.rb');
+    if (!rb){
+      stage.innerHTML = '<div class="frame"><div class="rb"></div></div><div class="pass" hidden><button class="ib pri" id="bPass">Pass my turn</button></div>';
+      rb = stage.querySelector('.rb'); shownB = null; lastN = null;
+      rb.innerHTML = Array.from({length:64}, (_, i) => `<div class="c ${[18, 22, 50, 54].includes(i) ? 'dotc' : ''}" data-sq="${i}"></div>`).join('');
+      rb.addEventListener('click', e => {
+        const c = e.target.closest('.c'); if (!c || !CTX || CTX.actor == null) return;
+        const sq = +c.dataset.sq;
+        if (!flips(CTX.state.b, sq, CTX.actor).length){ CTX.sfx.bad(); CTX.toast(CTX.state.b[sq] != null ? 'That square is taken' : 'That move wouldn’t flip any discs'); c.classList.add('shake'); setTimeout(() => c.classList.remove('shake'), 350); return; }
+        CTX.act({sq});
+      });
+      stage.querySelector('#bPass').onclick = () => CTX && CTX.act({pass:true});
+    }
+    const newMove = s.last && s.last.n !== lastN && lastN !== null && ctx.anim;
+    const hm = ctx.hints && ctx.actor != null ? new Map(moves(s.b, ctx.actor)) : new Map();
+    rb.querySelectorAll('.c').forEach(c => {
+      const sq = +c.dataset.sq, v = s.b[sq];
+      let dk = c.querySelector('.dk');
+      if (v == null){ if (dk) dk.remove(); }
+      else {
+        if (!dk){ dk = document.createElement('i'); dk.className = 'dk ' + (v ? 'w' : 'b') + (newMove ? ' new' : ''); c.appendChild(dk); }
+        else if (dk.classList.contains(v ? 'b' : 'w')){
+          if (newMove){ const d = Math.abs((sq >> 3) - (s.last.sq >> 3)) + Math.abs((sq & 7) - (s.last.sq & 7)); dk.style.animationDelay = d * 60 + 'ms'; dk.classList.remove('flip'); void dk.offsetWidth; dk.classList.add('flip'); setTimeout(() => { dk.className = 'dk flip ' + (v ? 'w' : 'b'); }, 250 + d * 60); }
+          else dk.className = 'dk ' + (v ? 'w' : 'b');
+        }
+      }
+      c.classList.toggle('last', !!(s.last && s.last.sq === sq));
+      c.classList.toggle('ok', hm.has(sq));
+      const old = c.querySelector('.hint'); if (old) old.remove();
+      if (hm.has(sq)){ const h = document.createElement('span'); h.className = 'hint'; h.textContent = hm.get(sq).length; c.appendChild(h); }
+    });
+    if (newMove){ if (s.last.pass) ctx.sfx.bad(); else { ctx.sfx.place(); s.last.flips.forEach((_, k) => k < 6 && setTimeout(() => ctx.sfx.flip(), 180 + k * 70)); } }
+    lastN = s.last ? s.last.n : 0;
+    stage.querySelector('.pass').hidden = !(ctx.actor != null && !moves(s.b, ctx.actor).length);
+  }
+});
+}
+</script>
+</body>
+</html>

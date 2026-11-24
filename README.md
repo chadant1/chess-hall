@@ -1,16 +1,20 @@
-# Chess Hall
+# Game Hall
 
-A chess game for laptops, tablets and phones. It runs in the browser with nothing to install, and you can add it to a home screen.
+A family games room for laptops, tablets and phones: Chess, Checkers, Mancala and Reversi, with Wild Cards, Five Dice and Word Tiles on the way. It runs in the browser with nothing to install, and you can add it to a home screen.
 
 **Play it:** https://chadant1.github.io/chess-hall/
 
-## Ways to play
+Every game has a computer opponent, pass & play on one device, and online play by link or code with no accounts. Each game also has a hints switch, and the other players can always see whether your hints are on and how often you used them.
+
+## Chess
+
+### Ways to play
 
 - **Computer**: the Stockfish engine, with 8 strength levels from Beginner to Grandmaster.
 - **Pass & play**: two people on one device, with an option to turn the board after each move.
 - **Online**: tap *New game → Online → Create online game* and send the link or code. No accounts or sign-ups. Both players keep the game open while they play, on Wi-Fi or mobile data.
 
-## Move hints you can switch on and off
+### Move hints you can switch on and off
 
 Each player has a **Move hints** switch on their player card. When it's on, picking up a piece shows the squares it can legally move to. The other player can always see:
 
@@ -18,7 +22,7 @@ Each player has a **Move hints** switch on their player card. When it's on, pick
 - how many of your moves were played with hints on (for example "3/12 moves with hints")
 - which moves those were: a gold dot in the move list
 
-## Also included
+### Also included
 
 Clocks (1 to 30 minutes, with optional extra time per move), drag or tap to move, every chess rule enforced (castling, en passant, promotion, and all draw rules), animated moves, sounds, 6 board styles, captured pieces with the material score, opening names, stepping back through past moves, undo, takeback and draw offers, rematch with colours swapped, chat, a "best move" suggestion (counts as a hint), an optional bar showing who the computer thinks is winning, arrows and circles drawn with right-click, and copying the game as PGN.
 
