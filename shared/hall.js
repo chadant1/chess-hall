@@ -557,7 +557,7 @@ function run(G){
   }
   function hostResume(t){
     leaveOnline(); cancelCpu();
-    T = t; role = 'host'; curCode = T.code; T.players[0].name = myName(); H = [];
+    T = t; role = 'host'; curCode = T.code; T.players[0].name = (prefs.name || '').trim() ? myName() : 'Player 1'; H = [];
     overShown = T.phase === 'over'; shown = null; lastView = null; chatInit = false; chatN = 0;
     try{ location.hash = 'g-' + T.code; }catch(e){}
     hostPeer();
@@ -603,10 +603,11 @@ function run(G){
     if (m.t === 'which'){ try{ conn.send({t:'game', id:G.id}); }catch(e){} return; }
     if (m.t === 'hello'){
       if (m.game && m.game !== G.id){ try{ conn.send({t:'game', id:G.id}); }catch(e){} return; }
-      const pid = String(m.pid || '').slice(0, 20), name = String(m.name || 'Player').trim().slice(0, 24) || 'Player';
+      const pid = String(m.pid || '').slice(0, 20); let name = String(m.name || '').trim().slice(0, 24);
       let seat = T.players.findIndex(p => p.pid === pid && p.kind !== 'open');
       if (seat < 0 && T.phase === 'lobby') seat = T.players.findIndex(p => p.kind === 'open');
       if (seat < 0){ try{ conn.send({t:'full'}); }catch(e){} setTimeout(() => conn.close(), 400); return; }
+      if (!name || name === 'Player') name = 'Player ' + (seat + 1);
       for (const [c, inf] of conns) if (inf.seat === seat && c !== conn){ conns.delete(c); try{ c.close(); }catch(e){} }
       conns.set(conn, {pid, seat, last:Date.now()});
       const was = T.players[seat];
@@ -715,7 +716,7 @@ function run(G){
     startPlay();
   }
   setTimeout(() => boot(), 0);   // after the game's own script has finished defining its helpers
-  return {toast, SND};
+  return {toast, SND, refresh:() => { if (T) render(); }};
 }
 
 return {run, esc, clone, SND, toast, store, prefs, LEVELS};

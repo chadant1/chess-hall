@@ -1,6 +1,6 @@
 # Game Hall
 
-A family games room for laptops, tablets and phones: Chess, Checkers, Mancala, Reversi, Wild Cards (with No Mercy rules) and Five Dice, with Word Tiles on the way. It runs in the browser with nothing to install, and you can add it to a home screen.
+A family games room for laptops, tablets and phones: Chess, Checkers, Mancala, Reversi, Wild Cards (with No Mercy rules), Five Dice and Word Tiles. It runs in the browser with nothing to install, and you can add it to a home screen.
 
 **Play it:** https://chadant1.github.io/chess-hall/
 
@@ -35,6 +35,9 @@ The person who creates a game hosts it. Their browser keeps the game and sends i
 - To run your own introduction server, start a [PeerJS server](https://github.com/peers/peerjs-server) and open the game with `?broker=yourhost:port`.
 
 ## Credits and licences
+
+- Word Tiles word list: [word-list](https://github.com/sindresorhus/word-list) by Sindre Sorhus (MIT), with common bad words removed
+- Wild Cards, Five Dice and Word Tiles use original names, artwork, board layout and letter values with classic game rules
 
 - Piece artwork: Colin M.L. Burnett (cburnett), CC BY-SA 3.0 / GPLv2+ / GFDL
 - Engine: [Stockfish.js](https://github.com/nmrugg/stockfish.js) 10.0.2 (GPL), source at that link
