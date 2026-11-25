@@ -129,7 +129,7 @@ function run(G){
   <aside class="side">
     <div class="st"><h2 id="stT"></h2><p id="stS"></p></div>
     <div class="invite" id="invite" hidden><div style="font-weight:800">Invite players</div><div style="font-size:14px;color:var(--mut)">Send the link or code. Keep this page open while you play.</div><div class="code" id="invCode"></div>
-      <div class="row"><button class="ib" id="bShare">${ICON.copy}<span>Copy invite</span></button><button class="ib" id="bCode">Copy code</button></div></div>
+      <div class="row"><button class="ib" id="bShare">${ICON.copy}<span>Copy invite</span></button><button class="ib" id="bCode">Copy code</button></div><div id="famInv"></div></div>
     <div class="plist" id="plist"></div>
     <div class="acts" id="acts"></div>
     <div class="tabs" role="tablist" id="tabs"><button role="tab" id="tLog" aria-selected="true">${esc(G.logLabel || 'Moves')}</button><button role="tab" id="tChat" aria-selected="false">Chat<span class="badge" id="chatBadge"></span></button></div>
@@ -221,6 +221,12 @@ function run(G){
     return {v:1, game:G.id, mode, code:null, players, opts:clone(opts || {}), first:0, state:null, phase:'lobby', over:null, meta:null, log:[], chat:[], round:1, updated:Date.now()};
   }
   function startPlay(){
+    if (G.noCpu && T.players.some(p => p.kind === 'open')){
+      const map = {}; const keep = [];
+      T.players.forEach((p, i) => { if (p.kind !== 'open'){ map[i] = keep.length; keep.push(p); } });
+      if (keep.length < N_MIN){ toast(`You need at least ${N_MIN} players`); return; }
+      T.players = keep; for (const [, info] of conns) if (info.seat != null) info.seat = map[info.seat];
+    }
     T.players.forEach(p => { if (p.kind === 'open'){ p.kind = 'cpu'; p.level = p.level ?? prefs.level; p.name = cpuName(T.players.indexOf(p), T.players.length); } });
     T.state = G.setup({n:T.players.length, opts:T.opts || {}, first:T.first || 0, players:T.players});
     T.phase = 'play'; T.over = null;
@@ -234,10 +240,12 @@ function run(G){
     if (!T || T.phase !== 'play') throw new Error('The game isn’t running');
     const prev = T.state;
     const next = G.act(clone(prev), seat, a);
-    if (role !== 'host' && T.mode !== 'online' && T.players[seat].kind === 'human'){ H.push(clone(T)); if (H.length > 60) H.shift(); }
+    if (seat >= 0 && role !== 'host' && T.mode !== 'online' && T.players[seat].kind === 'human' && !G.noUndo){ H.push(clone(T)); if (H.length > 60) H.shift(); }
     T.state = next;
-    T.meta.acts[seat]++;
-    if (G.hintable && T.meta.hints[seat] && T.players[seat].kind === 'human') T.meta.used[seat]++;
+    if (seat >= 0){
+      T.meta.acts[seat]++;
+      if (G.hintable && T.meta.hints[seat] && T.players[seat].kind === 'human' && !(G.countHint && !G.countHint(a))) T.meta.used[seat]++;
+    }
     const d = G.describe ? G.describe(a, prev, next, seat) : null;
     if (d) T.log.push({s:seat, t:d});
     if (T.log.length > 160) T.log.splice(1, T.log.length - 160);
@@ -252,7 +260,15 @@ function run(G){
     render();
     if (T.phase === 'over' && !overShown){ overShown = true; setTimeout(showEnd, G.endDelay ?? 900); }
     if (T.phase !== 'over') overShown = false;
-    scheduleCpu();
+    scheduleCpu(); scheduleAuto(); lobbyUpdate();
+  }
+  let autoT = 0;
+  function scheduleAuto(){
+    clearTimeout(autoT);
+    if (!T || T.phase !== 'play' || role === 'guest' || !G.auto) return;
+    const x = G.auto(T.state, Date.now());
+    if (!x) return;
+    autoT = setTimeout(() => { try{ if (T && T.phase === 'play') doAct(-1, x.a); }catch(e){ console.error(e); } }, Math.max(0, x.at - Date.now()));
   }
   function scheduleCpu(){
     if (!T || T.phase !== 'play' || role === 'guest') return;
@@ -291,8 +307,9 @@ function run(G){
     const needCover = T && T.mode === 'local' && G.hidden && T.phase === 'play' && c != null && T.players[c].kind === 'human' && shown !== c;
     const ctx = {T, state:vs, prev:lastView, viewer, actor, mine:mySeats(), act:uiAct, hints:actor != null && T.meta ? !!T.meta.hints[actor] : false,
       players:T ? T.players : [], phase:T ? T.phase : null, over:T ? T.over : null, sfx:SND, toast, anim:prefs.anim, opts:T ? T.opts || {} : {},
-      thinking:cpuSeat, current:c, covered:needCover, mode:T ? T.mode : null};
+      thinking:cpuSeat, current:c, covered:needCover, mode:T ? T.mode : null, now:() => Date.now() + (role === 'guest' ? skew : 0), live:sendLive, role};
     if (vs) G.render(ctx, stage);
+    else if (!T && !role && G.onlineOnly){ stage.innerHTML = `<div class="intro" style="background:var(--panel);border:1px solid var(--line);border-radius:22px;padding:clamp(20px,4vw,40px);box-shadow:var(--sh)">${G.intro || ''}<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:18px"><button class="ib pri" data-intro="new">${ICON.plus}Create a game</button><button class="ib" data-intro="join">Join with a code</button></div></div>`; stage.querySelectorAll('[data-intro]').forEach(b => b.onclick = () => { openNew('online'); if (b.dataset.intro === 'join') setTimeout(() => $('#joinCode').focus(), 60); }); }
     else stage.innerHTML = '<div style="aspect-ratio:1;display:grid;place-items:center;color:var(--mut);font-weight:700">Waiting for the game…</div>';
     const old = stage.querySelector('.cover'); if (old) old.remove();
     if (needCover){
@@ -313,13 +330,15 @@ function run(G){
     return w.map(x => T.players[x].name || seatName(x)).join(' & ') + (w.length > 1 ? ' win' : ' wins');
   }
   function statusText(vs){
+    if (!T && !role && G.onlineOnly) return ['Play with family and friends', G.onlineNote || 'This game is played online, each person on their own device.'];
     if (!T) return role === 'guest' ? (netState === 'nohost' ? ['Can’t reach that game yet', 'The player who created it needs to have the game open. Retrying…'] : netState === 'offline' ? ['Connection trouble', 'Check your internet connection. Retrying…'] : ['Connecting…', 'Finding the game']) : ['', ''];
-    if (T.phase === 'lobby') return role === 'host' ? ['Waiting for players', 'Share the invite, then press Start. Empty seats are played by the computer.'] : ['Waiting to start', (T.players[0].name || 'The host') + ' will start the game soon'];
+    if (T.phase === 'lobby') return role === 'host' ? ['Waiting for players', G.noCpu ? 'Share the invite, then press Start when everyone is in.' : 'Share the invite, then press Start. Empty seats are played by the computer.'] : ['Waiting to start', (T.players[0].name || 'The host') + ' will start the game soon'];
     if (T.phase === 'over') return [endTitle(), T.over.text || ''];
     const c = current(); if (c == null) return ['', ''];
     const p = T.players[c], mine = mySeats();
     let t = p.kind === 'cpu' ? p.name + ' is thinking…' : (T.mode !== 'local' && mine.includes(c) ? 'Your turn' : (p.name || seatName(c)) + '’s turn');
-    let s = G.status ? G.status(vs, {viewer:viewerSeat(), actor:actorSeat(), T}) || '' : '';
+    let s = G.status ? G.status(vs, {viewer:viewerSeat(), actor:actorSeat(), T, now:() => Date.now() + (role === 'guest' ? skew : 0)}) || '' : '';
+    if (G.statusTitle){ const tt = G.statusTitle(vs, {viewer:viewerSeat(), actor:actorSeat(), T, mine}); if (tt) t = tt; }
     if (role === 'guest' && !(hostConn && hostConn.open)) s = 'Lost touch with the host. Reconnecting…';
     else if (T.mode === 'online' && T.online && T.players.some((q, i) => q.kind === 'human' && !T.online[i] && i === c)) s = (p.name || 'This player') + ' isn’t connected right now';
     return [t, s];
@@ -331,7 +350,7 @@ function run(G){
     $('#modetag').textContent = !T && role === 'guest' ? 'Online' : !T ? '' : T.mode === 'online' ? 'Online · ' + String(T.code || '').toUpperCase() : T.mode === 'cpu' ? 'Versus computer' : 'Pass & play';
     // invite
     const inv = role === 'host' && T && (T.phase === 'lobby' || T.players.some(p => p.kind === 'open'));
-    $('#invite').hidden = !inv; if (inv) $('#invCode').textContent = T.code.toUpperCase();
+    $('#invite').hidden = !inv; if (inv){ $('#invCode').textContent = T.code.toUpperCase(); famInvite(); }
     // players
     const pl = $('#plist'); pl.innerHTML = '';
     if (T){
@@ -342,9 +361,9 @@ function run(G){
         const online = T.mode === 'online' && T.online && T.online[i];
         let meta = '';
         if (p.kind === 'cpu') meta += `<span class="pill">Computer · ${LEVELS[p.level ?? 1]}</span>`;
-        else if (p.kind === 'open') meta += `<span>Waiting for a player…</span>` + (role === 'host' ? `<button class="mini" data-cpu="${i}">Computer plays</button>` : '');
+        else if (p.kind === 'open') meta += `<span>Waiting for a player…</span>` + (role === 'host' && !G.noCpu ? `<button class="mini" data-cpu="${i}">Computer plays</button>` : '');
         else {
-          if (T.mode === 'online' && !online && T.online) meta += `<span>Not connected</span>` + (role === 'host' && T.phase === 'play' ? `<button class="mini" data-cpu="${i}">Computer takes over</button>` : '');
+          if (T.mode === 'online' && !online && T.online) meta += `<span>Not connected</span>` + (role === 'host' && T.phase === 'play' && !G.noCpu ? `<button class="mini" data-cpu="${i}">Computer takes over</button>` : '');
           if (G.hintable && T.meta){
             const on = !!T.meta.hints[i], edit = T.mode === 'local' || mine.includes(i);
             meta += edit ? `<button class="pill ${on ? 'on' : ''}" data-hint="${i}" aria-pressed="${on}">${ICON.bulb}${esc(G.hintShort || 'Hints')}</button>` : `<span class="pill ${on ? 'on' : ''}">${ICON.bulb}${esc(G.hintShort || 'Hints')} ${on ? 'on' : 'off'}</span>`;
@@ -478,12 +497,13 @@ function run(G){
   const NG = {mode:prefs.mode[G.id] || 'cpu', players:prefs.players[G.id] || G.defaultPlayers || N_MIN, opts:Object.assign({}, Object.fromEntries((G.options || []).map(o => [o.key, o.def])), prefs.opts[G.id] || {})};
   const pressed = (el, v) => el.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v) === String(v)));
   function renderNew(){
+    if (G.onlineOnly){ NG.mode = 'online'; $('#ngMode').hidden = true; }
     pressed($('#ngMode'), NG.mode);
     const minP = NG.mode === 'cpu' ? Math.max(N_MIN, G.soloOk ? 1 : 2) : Math.max(N_MIN, 2);
     $('#ngPlayers').querySelectorAll('button').forEach(b => { b.hidden = +b.dataset.v < minP; });
     if (NG.players < minP) NG.players = minP;
     pressed($('#ngPlayers'), NG.players);
-    $('#plNote').textContent = NG.mode === 'cpu' ? (NG.players === 1 ? 'Just you' : 'You + ' + (NG.players - 1) + ' computer' + (NG.players > 2 ? 's' : '')) : NG.mode === 'online' ? 'Empty seats can be computer players' : '';
+    $('#plNote').textContent = NG.mode === 'cpu' ? (NG.players === 1 ? 'Just you' : 'You + ' + (NG.players - 1) + ' computer' + (NG.players > 2 ? 's' : '')) : NG.mode === 'online' ? (G.noCpu ? 'Up to this many; unused seats are dropped when you start' : 'Empty seats can be computer players') : '';
     $('#ngPl').hidden = N_MAX === N_MIN || (N_MAX === 2 && NG.mode !== 'cpu');
     $('#ngLv').hidden = NG.mode === 'local' || (NG.mode === 'cpu' && NG.players === 1) || G.noCpu;
     pressed($('#ngLevel'), prefs.level);
@@ -628,6 +648,18 @@ function run(G){
     else if (m.t === 'again' && T.phase === 'over') playAgain();
     else if (m.t === 'resign') doResign(seat);
     else if (m.t === 'ping'){ try{ conn.send({t:'pong'}); }catch(e){} }
+    else if (m.t === 'live' && G.onLive){ relayLive(seat, m.d, conn); }
+  }
+  function relayLive(seat, d, except){
+    let txt = ''; try{ txt = JSON.stringify(d); }catch(e){ return; }
+    if (txt.length > 12000) return;
+    for (const [c, info] of conns) if (c !== except && c.open && info.seat != null){ try{ c.send({t:'live', s:seat, d}); }catch(e){} }
+    if (seat !== (mySeats()[0] ?? -2)) { try{ G.onLive(d, seat, liveCtx()); }catch(e){} }
+  }
+  const liveCtx = () => ({viewer:viewerSeat(), stage, T});
+  function sendLive(d){
+    if (role === 'guest') send({t:'live', d});
+    else if (role === 'host') relayLive(mySeats()[0] ?? 0, d, null);
   }
 
   /* ---------- online: joining ---------- */
@@ -669,12 +701,13 @@ function run(G){
       hostSeen = Date.now();
       if (m.t === 'table' && m.T && typeof m.T === 'object'){
         const wasPhase = T && T.phase;
-        T = m.T; T.mode = 'online';
+        T = m.T; T.mode = 'online'; lobbyUpdate();
         if (T.phase === 'play' && wasPhase && wasPhase !== 'play') overShown = false;
         render();
         if (T.phase === 'over' && !overShown){ overShown = true; if (wasPhase) setTimeout(showEnd, G.endDelay ?? 900); }
       }
       else if (m.t === 'time'){ const r = Date.now(); skew = (+m.h || r) - ((+m.g || r) + r) / 2; }
+      else if (m.t === 'live' && G.onLive && T){ try{ G.onLive(m.d, +m.s, liveCtx()); }catch(e){} }
       else if (m.t === 'err'){ SND.bad(); toast(String(m.msg || 'That move isn’t allowed').slice(0, 120)); }
       else if (m.t === 'game' && typeof m.id === 'string' && /^[a-z]+$/.test(m.id) && m.id !== G.id){ location.href = '../' + m.id + '/#g-' + code; }
       else if (m.t === 'full'){ toast('That game is already full'); leaveOnline(); boot(true); }
@@ -703,10 +736,52 @@ function run(G){
   }
   window.addEventListener('hashchange', () => { const m = /^#g-([a-z0-9]{4,12})$/.exec(location.hash); if (m && m[1] !== curCode) join(m[1]); });
 
+  /* ---------- family room (who's online) ---------- */
+  function lobbyInfo(){
+    let table = null;
+    if (T && T.code && role){
+      table = {code:T.code, game:G.id, host:role === 'host', open:T.players.filter(p => p.kind === 'open').length, phase:T.phase,
+        players:T.players.filter(p => p.kind === 'human').map(p => p.name || 'Player')};
+    }
+    return {where:G.id, game:G.name, table};
+  }
+  function lobbyUpdate(){ if (window.Lobby) Lobby.update(); }
+  const invited = new Set();
+  function famInvite(){
+    const box = $('#famInv'); if (!box) return;
+    if (!window.Lobby || !Lobby.room || !T || role !== 'host'){ box.innerHTML = ''; return; }
+    const inGame = new Set(T.players.map(p => p.name));
+    const ppl = Lobby.roster.filter(p => p.pid !== Lobby.myPid() && !(p.table && p.table.code === T.code));
+    box.innerHTML = ppl.length ? '<div style="font-weight:800;font-size:14px;margin:12px 0 6px">Family online now</div>' : `<div style="font-size:13px;color:var(--mut);margin-top:10px">Nobody else from your family room is online right now.</div>`;
+    for (const p of ppl){
+      const row = document.createElement('div'); row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:6px';
+      const nm = document.createElement('span'); nm.style.fontWeight = '700'; nm.textContent = p.name + (p.table ? ' · in a game' : '');
+      const b = document.createElement('button'); b.className = 'mini'; const key = p.pid + T.code;
+      b.textContent = invited.has(key) ? 'Invited' : 'Invite'; b.disabled = invited.has(key);
+      b.onclick = () => { if (Lobby.invite(p.pid, G.id, T.code, G.name)){ invited.add(key); b.textContent = 'Invited'; b.disabled = true; toast('Invite sent to ' + p.name); } else toast('Not connected to your family room yet'); };
+      row.append(nm, b); box.appendChild(row);
+    }
+  }
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('../sw.js', {scope:'../'}).catch(() => {});
+  (function loadLobby(){
+    const go = () => { Lobby.start({getInfo:lobbyInfo}); Lobby.onChange(famInvite); };
+    if (window.Lobby) go();
+    else { const sc = document.createElement('script'); sc.src = '../shared/lobby.js'; sc.onload = go; document.head.appendChild(sc); }
+  })();
+
   /* ---------- boot ---------- */
   function boot(skipHash){
     const m = !skipHash && /^#g-([a-z0-9]{4,12})$/.exec(location.hash);
     if (m){ join(m[1]); return; }
+    let ah = null; try{ ah = JSON.parse(sessionStorage.getItem('gamehall.autohost') || 'null'); }catch(e){}
+    if (ah && ah.game === G.id && typeof window.Peer === 'function'){
+      try{ sessionStorage.removeItem('gamehall.autohost'); }catch(e){}
+      hostCreate(N_MAX === 2 ? 2 : Math.max(2, NG.players));
+      (Array.isArray(ah.to) ? ah.to : []).forEach(pid => setTimeout(() => window.Lobby && Lobby.invite(String(pid), G.id, T.code, G.name), 600));
+      if (ah.to && ah.to.length) toast('Invite sent. The game starts when they join.');
+      return;
+    }
+    if (G.onlineOnly){ T = null; render(); return; }
     const sv = store.get('save.' + G.id, null);
     if (sv && sv.T && sv.T.state && sv.T.game === G.id){
       T = sv.T; H = Array.isArray(sv.H) ? sv.H : []; overShown = T.phase === 'over';

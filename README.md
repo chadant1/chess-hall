@@ -1,10 +1,14 @@
 # Game Hall
 
-A family games room for laptops, tablets and phones: Chess, Checkers, Mancala, Reversi, Wild Cards (with No Mercy rules), Five Dice and Word Tiles. It runs in the browser with nothing to install, and you can add it to a home screen.
+A family games room for laptops, tablets and phones: Chess, Checkers, Mancala, Reversi, Wild Cards (with No Mercy rules), Five Dice, Word Tiles, Sea Battle and Sketch & Guess. It runs in the browser with nothing to install, and you can add it to a home screen.
 
 **Play it:** https://chadant1.github.io/chess-hall/
 
-Every game has a computer opponent, pass & play on one device, and online play by link or code with no accounts. Each game also has a hints switch, and the other players can always see whether your hints are on and how often you used them.
+Every game has online play by link or code with no accounts; all but Sketch & Guess also have a computer opponent and pass & play on one device.
+
+**Family room:** type the same family room name on each device and the home screen shows who's online, which game they're in, open games to join, and an Invite button that pops up on the other person's screen.
+
+**Install it:** use the "Install Game Hall on this device" button on the home screen (or your browser's install / Add to Home Screen option). Once installed, Computer and Pass & play games work offline. Each game also has a hints switch, and the other players can always see whether your hints are on and how often you used them.
 
 ## Chess
 

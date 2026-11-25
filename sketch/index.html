@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sketch &amp; Guess · Game Hall</title>
+<meta name="theme-color" content="#1b1016">
+<link rel="manifest" href="../manifest.webmanifest"><link rel="icon" href="../icons/icon-192.png"><link rel="apple-touch-icon" href="../icons/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/hall.css">
+<style>
+/* Sketch & Guess: a sheet of drawing paper on an easel, a brass timer, and a guess slip beside it. */
+.sk{display:grid;grid-template-columns:minmax(0,1fr) minmax(220px,300px);gap:14px;align-items:start}
+.wordbar{grid-column:1/-1;display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:10px 14px;box-shadow:var(--sh)}
+.word{font:700 clamp(22px,3.4vw,34px)/1 Fraunces,Georgia,serif;letter-spacing:.14em;flex:1;min-width:0;overflow-wrap:anywhere}
+.word small{font:700 13px/1 Manrope,system-ui,sans-serif;letter-spacing:0;color:var(--mut);margin-left:8px}
+.timer{display:flex;align-items:center;gap:8px;font:800 20px/1 Manrope,system-ui,sans-serif;font-variant-numeric:tabular-nums}
+.timer .tb{width:120px;height:10px;border-radius:99px;background:var(--panel2);overflow:hidden}
+.timer .tb i{display:block;height:100%;background:var(--brass);transition:width .25s linear}
+.timer.low .tb i{background:var(--danger)}
+.easel{position:relative;border-radius:16px;padding:10px;background:linear-gradient(150deg,var(--wood1),var(--wood2));box-shadow:var(--sh),inset 0 0 0 2px rgba(227,183,92,.4)}
+canvas.pad{display:block;width:100%;aspect-ratio:4/3;background:#fffdf8;border-radius:8px;touch-action:none;cursor:crosshair}
+.tools{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:10px}
+.sw{width:30px;height:30px;border-radius:50%;border:3px solid rgba(255,255,255,.7);cursor:pointer;box-shadow:0 2px 4px rgba(0,0,0,.4)}
+.sw.on{outline:3px solid #f3cf73;outline-offset:2px}
+.sz{width:36px;height:36px;border-radius:10px;border:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.08);cursor:pointer;display:grid;place-items:center}
+.sz i{display:block;border-radius:50%;background:#fff}
+.sz.on{outline:3px solid #f3cf73}
+.tools .ib{min-height:36px;padding:0 12px;background:rgba(255,255,255,.08);color:#f6ecef;border-color:rgba(255,255,255,.2)}
+.overlay{position:absolute;inset:0;border-radius:8px;background:rgba(27,16,22,.86);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:#f6ecef;text-align:center;padding:20px}
+.overlay h3{margin:0;font:700 clamp(24px,3.2vw,34px)/1.1 Fraunces,Georgia,serif}
+.overlay .choices{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+.overlay .choices button{min-height:54px;padding:0 20px;border-radius:14px;border:2px solid #e3b75c;background:rgba(227,183,92,.14);color:#fff;font:800 18px Manrope,system-ui,sans-serif;cursor:pointer;text-transform:capitalize}
+.overlay .gains{display:flex;flex-direction:column;gap:4px;font-weight:700}
+.side2{display:flex;flex-direction:column;gap:10px;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:12px;box-shadow:var(--sh);height:100%;min-height:300px}
+.feed{flex:1;overflow:auto;display:flex;flex-direction:column;gap:4px;font-size:15px;max-height:420px}
+.feed div{padding:5px 9px;border-radius:10px;background:var(--panel2);overflow-wrap:anywhere}
+.feed b{font-weight:800}
+.feed .right{background:color-mix(in srgb,var(--ok) 22%,transparent);font-weight:800}
+.feed .close{background:var(--brassbg);font-style:italic}
+.feed .secret{opacity:.75;font-style:italic}
+.feed .sys{background:transparent;color:var(--mut);font-size:13px;text-align:center}
+.gform{display:flex;gap:6px}
+.gform input{flex:1;min-height:46px;border-radius:12px;border:1px solid var(--line);background:var(--panel2);padding:0 12px;font-size:16px;color:var(--ink)}
+@media (max-width:760px){.sk{grid-template-columns:minmax(0,1fr)}.side2{min-height:0}.feed{max-height:200px}.timer .tb{width:70px}}
+</style>
+</head>
+<body>
+<script src="../shared/peerjs.min.js"></script>
+<script src="../shared/hall.js"></script>
+<script>
+{
+const BANK = `apple,banana,carrot,pizza,cake,cookie,ice cream,sandwich,donut,pumpkin,cheese,grapes,strawberry,watermelon,popcorn,hot dog,egg,bread,cherry,pineapple,
+cat,dog,fish,bird,horse,cow,pig,sheep,duck,frog,snake,turtle,rabbit,mouse,lion,tiger,elephant,giraffe,monkey,zebra,bear,penguin,owl,shark,whale,octopus,crab,snail,bee,butterfly,spider,dinosaur,dragon,unicorn,
+house,castle,tent,bridge,tower,lighthouse,barn,igloo,school,
+car,bus,train,plane,boat,rocket,bicycle,truck,tractor,helicopter,submarine,skateboard,scooter,
+sun,moon,star,cloud,rain,snowman,rainbow,lightning,tornado,volcano,mountain,island,beach,tree,flower,cactus,mushroom,leaf,river,waterfall,
+hat,shoe,sock,glove,scarf,dress,shirt,crown,glasses,umbrella,backpack,
+ball,kite,balloon,drum,guitar,piano,trumpet,robot,teddy bear,yo-yo,puzzle,dice,
+book,pencil,scissors,clock,key,lamp,chair,bed,door,window,ladder,bucket,broom,candle,camera,phone,computer,television,
+pirate,ghost,witch,wizard,king,queen,knight,princess,clown,astronaut,mermaid,superhero,
+swimming,sleeping,dancing,jumping,reading,cooking,fishing,painting,skiing,running,
+heart,smile,ear,eye,nose,hand,foot,tooth,hair,mustache,
+treasure map,anchor,sword,shield,flag,trophy,present,birthday,fireworks,campfire,spaceship,planet,alien,
+sandcastle,snowflake,spider web,nest,feather,bone,footprint`.split(',').map(w => w.trim()).filter(Boolean);
+const norm = t => String(t || '').toLowerCase().replace(/[^a-z ]/g, '').replace(/\s+/g, ' ').trim();
+function lev(a, b){ const m = a.length, n = b.length; if (Math.abs(m - n) > 1) return 2; const d = Array.from({length:m + 1}, (_, i) => [i]); for (let j = 1; j <= n; j++) d[0][j] = j; for (let i = 1; i <= m; i++) for (let j = 1; j <= n; j++) d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)); return d[m][n]; }
+const pick3 = used => { const pool = BANK.filter(w => !used.includes(w)); const out = []; while (out.length < 3 && pool.length) out.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]); return out; };
+const CHOOSE_MS = 15000, REVEAL_MS = 6000;
+function setup({n, opts, first, players}){
+  const order = Array.from({length:n}, (_, i) => (first + i) % n);
+  const s = {phase:'choose', round:1, rounds:+opts.rounds || 2, time:(+opts.time || 80) * 1000, order, di:0, drawer:order[0], choices:[], word:'', deadline:0, started:0,
+    guessed:{}, scores:Array(n).fill(0), strokes:[], feed:[], used:[], hints:[], shown:[], n:0, names:(players || []).map(p => String(p.name || '').slice(0, 24)), gain:null};
+  beginChoose(s, Date.now());
+  return s;
+}
+function beginChoose(s, now){ s.phase = 'choose'; s.choices = pick3(s.used); s.word = ''; s.strokes = []; s.guessed = {}; s.shown = []; s.deadline = now + CHOOSE_MS; s.gain = null; s.feed.push({k:'sys', t:`${s.names[s.drawer] || 'Someone'} is choosing a word`}); }
+function beginDraw(s, word, now){
+  s.phase = 'draw'; s.word = word; s.used.push(word); s.choices = []; s.started = now; s.deadline = now + s.time;
+  const letters = [...word].map((c, i) => c === ' ' || c === '-' ? -1 : i).filter(i => i >= 0);
+  const k = Math.max(1, Math.floor(letters.length / 3));
+  for (let i = letters.length - 1; i > 0; i--){ const j = Math.floor(Math.random() * (i + 1)); [letters[i], letters[j]] = [letters[j], letters[i]]; }
+  s.hints = letters.slice(0, letters.length > 2 ? k : 0).map((pos, q) => ({pos, at:now + s.time * (0.45 + 0.25 * q / Math.max(1, k))}));
+  s.feed.push({k:'sys', t:`${s.names[s.drawer] || 'Someone'} is drawing`});
+}
+function endTurn(s, now){
+  s.phase = 'reveal'; s.deadline = now + REVEAL_MS;
+  const n = Object.keys(s.guessed).length;
+  const dg = Math.min(100, n * 25); s.scores[s.drawer] += dg;
+  s.gain = {word:s.word, drawer:dg, guessers:{...s.guessed}};
+  s.feed.push({k:'sys', t:`The word was “${s.word}”`});
+}
+function next(s, now){
+  s.di++;
+  if (s.di >= s.order.length){ s.di = 0; s.round++; }
+  if (s.round > s.rounds){ s.phase = 'done'; s.feed.push({k:'sys', t:'Game over!'}); return; }
+  s.drawer = s.order[s.di]; beginChoose(s, now);
+}
+function act(s, seat, a){
+  const now = Date.now(); s.n++;
+  if (seat === -1){
+    if (a.sys === 'pickauto' && s.phase === 'choose') beginDraw(s, s.choices[0], now);
+    else if (a.sys === 'tick' && s.phase === 'draw'){
+      for (const h of s.hints) if (h.at <= now && !s.shown.includes(h.pos)) s.shown.push(h.pos);
+      if (now >= s.deadline - 50) endTurn(s, now);
+    }
+    else if (a.sys === 'next' && s.phase === 'reveal') next(s, now);
+    return s;
+  }
+  if (s.phase === 'done') throw new Error('The game is over');
+  if (a.pick != null){
+    if (seat !== s.drawer || s.phase !== 'choose') throw new Error('It’s not your turn to choose');
+    const w = s.choices[+a.pick]; if (!w) throw new Error('Pick one of the words');
+    beginDraw(s, w, now); return s;
+  }
+  if (a.stroke || a.undo || a.clear){
+    if (seat !== s.drawer || s.phase !== 'draw') throw new Error('Only the artist can draw right now');
+    if (a.clear) s.strokes = [];
+    else if (a.undo) s.strokes.pop();
+    else {
+      const st = a.stroke, p = Array.isArray(st.p) ? st.p.slice(0, 3000).map(v => Math.max(0, Math.min(1000, Math.round(+v) || 0))) : [];
+      if (p.length >= 2 && s.strokes.length < 600) s.strokes.push({id:String(st.id || '').slice(0, 12), c:/^#[0-9a-f]{6}$/i.test(st.c) ? st.c : '#222222', w:Math.max(2, Math.min(60, +st.w || 6)), p});
+    }
+    return s;
+  }
+  if (a.guess != null){
+    if (s.phase !== 'draw') throw new Error('Wait for the drawing to start');
+    if (seat === s.drawer) throw new Error('You’re the artist. No guessing!');
+    const g = norm(a.guess).slice(0, 60); if (!g) throw new Error('Type a guess');
+    if (s.guessed[seat] != null){ s.feed.push({k:'secret', s:seat, t:g}); trim(s); return s; }
+    if (g === norm(s.word)){
+      const frac = Math.max(0, (s.deadline - now) / s.time), pts = 50 + Math.round(50 * frac) + (Object.keys(s.guessed).length === 0 ? 10 : 0);
+      s.guessed[seat] = pts; s.scores[seat] += pts; s.feed.push({k:'right', s:seat});
+      const guessers = s.order.filter(x => x !== s.drawer);
+      if (guessers.every(x => s.guessed[x] != null)) endTurn(s, now);
+    } else if (g.length > 3 && lev(g, norm(s.word)) <= 1) s.feed.push({k:'close', s:seat, t:g, to:seat});
+    else s.feed.push({k:'guess', s:seat, t:g});
+    trim(s); return s;
+  }
+  throw new Error('Draw or guess');
+}
+const trim = s => { if (s.feed.length > 80) s.feed.splice(0, s.feed.length - 80); };
+let CTX = null, tool = {c:'#222222', w:8}, live = {}, myStroke = null, lastPhase = null, lastFeedN = 0, tickT = 0;
+const PAL = ['#222222', '#ffffff', '#e5484d', '#ff8a3d', '#e6b422', '#2f9e5e', '#2f72d6', '#8b5cf6', '#f08fb8', '#8a5a3b'];
+Hall.run({
+  id:'sketch', name:'Sketch & Guess', min:2, max:8, defaultPlayers:4, onlineOnly:true, noCpu:true, noUndo:true, hidden:true, anyTurn:true, layout:'wide',
+  colors:['#e3b75c', '#e5484d', '#2f72d6', '#2f9e5e', '#8b5cf6', '#ff8a3d', '#f08fb8', '#5d9fb8'],
+  icon:'<svg viewBox="0 0 32 32"><rect x="4" y="5" width="24" height="18" rx="3" fill="#fbf6ee"/><path d="M8 19c3-7 6-10 9-10s5 4 7 10" fill="none" stroke="#e5484d" stroke-width="2.4" stroke-linecap="round"/><path d="M22 26l6-9" stroke="#e3b75c" stroke-width="3" stroke-linecap="round"/></svg>',
+  tagline:'Take turns drawing a secret word while everyone else races to guess it.',
+  intro:`<h2 style="margin:0;font:700 34px/1.1 Fraunces,Georgia,serif">Sketch &amp; Guess</h2><p style="color:var(--mut);margin:10px 0 0;max-width:56ch">One person draws a secret word; everyone else types guesses. The faster you guess, the more points you score, and the artist scores for every right guess. Everyone plays on their own device, so create a game and invite the family, or join with a code.</p>`,
+  onlineNote:'Everyone plays on their own phone, tablet or laptop.',
+  hintable:true, hintLabel:'Show letter hints as time runs out', hintShort:'Letter hints', logLabel:'Turns',
+  options:[{key:'rounds', label:'Rounds', def:2, choices:[[1, '1'], [2, '2'], [3, '3']], note:'Each round, everyone draws once.'},
+           {key:'time', label:'Drawing time', def:80, choices:[[60, '60 s'], [80, '80 s'], [100, '100 s']]}],
+  credit:'Sketch & Guess is an original drawing-and-guessing party game.',
+  rules:`<p>Players take turns being the <b>artist</b>. Everyone else guesses.</p>
+  <h3>The artist</h3><p>Choose one of three words, then draw it before time runs out. No letters or numbers in your drawing! You score 25 points for each person who guesses it (up to 100).</p>
+  <h3>Guessers</h3><p>Type guesses in the box. A right guess scores 50 to 100 points (faster is more), plus 10 for being first. If you're one letter off, you'll see <i>“So close!”</i>, and only you see it.</p>
+  <h3>Letter hints</h3><p>With hints on, some letters of the word appear as time runs down. Everyone can see whether your hints are on.</p>
+  <h3>Winning</h3><p>After every round, the player with the most points wins.</p>`,
+  setup, act,
+  current:s => s.phase === 'done' ? null : s.drawer,
+  auto(s, now){
+    if (s.phase === 'choose') return {at:s.deadline, a:{sys:'pickauto'}};
+    if (s.phase === 'draw'){ const h = s.hints.filter(x => !s.shown.includes(x.pos)).map(x => x.at); return {at:Math.min(s.deadline, ...h), a:{sys:'tick'}}; }
+    if (s.phase === 'reveal') return {at:s.deadline, a:{sys:'next'}};
+    return null;
+  },
+  countHint:a => a.guess != null,
+  view(s, seat){
+    const knows = seat === s.drawer || s.guessed[seat] != null || s.phase === 'reveal' || s.phase === 'done';
+    if (seat !== s.drawer) s.choices = s.choices.map(() => '');
+    if (!knows){ s.word = [...s.word].map((c, i) => c === ' ' || c === '-' ? c : s.shown.includes(i) ? c : '_').join(''); s.masked = true; }
+    s.hints = [];
+    const inner = new Set(Object.keys(s.guessed).map(Number).concat([s.drawer]));
+    s.feed = s.feed.filter(f => (f.k !== 'close' || f.to === seat) && (f.k !== 'secret' || inner.has(seat)));
+    return s;
+  },
+  over(s){
+    if (s.phase !== 'done') return null;
+    const mx = Math.max(...s.scores), w = s.scores.map((v, i) => v === mx ? i : -1).filter(i => i >= 0);
+    return {winners:w, text:`with ${mx} points`};
+  },
+  describe(a, prev, next, seat){
+    if (seat === -1 && next.phase === 'reveal' && prev.phase === 'draw') return `Time! The word was “${next.word}”`;
+    if (a.pick != null) return 'is drawing';
+    if (a.guess != null && next.phase === 'reveal' && prev.phase === 'draw') return `guessed it. Everyone got “${prev.word}”!`;
+    if (a.guess != null && Object.keys(next.guessed).length > Object.keys(prev.guessed).length) return 'guessed the word!';
+    return null;
+  },
+  score(s, i){ return {v:s.scores[i], l:'points'}; },
+  statusTitle(s, {actor, viewer, T}){
+    if (!s || s.phase === 'done') return null;
+    const me = viewer, nm = (T && T.players[s.drawer] && T.players[s.drawer].name) || 'Someone';
+    if (s.phase === 'choose') return me === s.drawer ? 'Pick a word to draw' : `${nm} is choosing a word`;
+    if (s.phase === 'reveal') return 'Time’s up!';
+    if (me === s.drawer) return 'Draw it!';
+    if (s.guessed[me] != null) return 'You got it!';
+    return `Guess what ${nm} is drawing`;
+  },
+  status(s){ return s && s.phase !== 'done' ? `Round ${Math.min(s.round, s.rounds)} of ${s.rounds}` : ''; },
+  onLive(d, seat, lc){
+    if (!d || typeof d !== 'object' || !Array.isArray(d.p)) return;
+    const st = live[d.id] || (live[d.id] = {c:/^#[0-9a-f]{6}$/i.test(d.c) ? d.c : '#222222', w:Math.max(2, Math.min(60, +d.w || 6)), p:[]});
+    st.p.push(...d.p.slice(0, 400).map(v => +v || 0));
+    paint();
+  },
+  render
+});
+const esc = Hall.esc;
+function pad(){ return document.querySelector('canvas.pad'); }
+function paint(){
+  const cv = pad(); if (!cv || !CTX) return;
+  const r = cv.getBoundingClientRect(), dpr = devicePixelRatio || 1;
+  if (cv.width !== Math.round(r.width * dpr)){ cv.width = Math.round(r.width * dpr); cv.height = Math.round(r.width * .75 * dpr); }
+  const g = cv.getContext('2d'), k = cv.width / 1000;
+  g.fillStyle = '#fffdf8'; g.fillRect(0, 0, cv.width, cv.height);
+  g.lineCap = 'round'; g.lineJoin = 'round';
+  const done = new Set();
+  const line = st => { const p = st.p; if (p.length < 2) return; g.strokeStyle = st.c; g.lineWidth = st.w * k; g.beginPath(); g.moveTo(p[0] * k, p[1] * k); if (p.length === 2) g.lineTo(p[0] * k + .1, p[1] * k); for (let i = 2; i < p.length; i += 2) g.lineTo(p[i] * k, p[i + 1] * k); g.stroke(); };
+  for (const st of CTX.state.strokes || []){ line(st); done.add(st.id); }
+  for (const id in live){ if (done.has(id)) delete live[id]; else line(live[id]); }
+  if (myStroke) line(myStroke);
+}
+function render(ctx, stage){
+  CTX = ctx;
+  const s = ctx.state, me = ctx.viewer, artist = me === s.drawer && s.phase === 'draw';
+  let sk = stage.querySelector('.sk');
+  if (!sk){
+    stage.innerHTML = `<div class="sk"><div class="wordbar"><div class="word"></div><div class="timer"><span class="tt"></span><span class="tb"><i></i></span></div></div>
+      <div><div class="easel"><div style="position:relative"><canvas class="pad"></canvas><div class="ovl"></div></div><div class="tools"></div></div></div>
+      <div class="side2"><div style="font:700 18px Fraunces,Georgia,serif">Guesses</div><div class="feed"></div><form class="gform"><input maxlength="60" placeholder="Type your guess" autocomplete="off" autocapitalize="off" aria-label="Your guess"><button class="ib pri">Guess</button></form></div></div>`;
+    sk = stage.querySelector('.sk');
+    const cv = sk.querySelector('canvas');
+    cv.addEventListener('pointerdown', penDown);
+    sk.querySelector('.gform').onsubmit = e => { e.preventDefault(); const i = e.target.querySelector('input'); if (i.value.trim()){ CTX.act({guess:i.value}); i.value = ''; } };
+    sk.querySelector('.tools').addEventListener('click', onTool);
+    sk.querySelector('.ovl').addEventListener('click', e => { const b = e.target.closest('[data-pick]'); if (b) CTX.act({pick:+b.dataset.pick}); });
+    new ResizeObserver(() => paint()).observe(cv);
+    clearInterval(tickT); tickT = setInterval(tick, 250);
+  }
+  // word line
+  const w = sk.querySelector('.word');
+  if (s.phase === 'choose') w.innerHTML = '<small>Choosing…</small>';
+  else if (s.phase === 'done') w.textContent = 'Thanks for playing!';
+  else {
+    const shown = s.masked && !ctx.hints ? s.word.replace(/[a-z]/g, '_') : s.word;
+    w.innerHTML = `${esc(shown.split('').join(' '))}<small>${s.masked ? s.word.replace(/[^a-z_]/g, '').length + ' letters' : me === s.drawer ? 'your word' : ''}</small>`;
+  }
+  // overlay
+  const ov = sk.querySelector('.ovl'); let oh = '';
+  if (s.phase === 'choose') oh = me === s.drawer ? `<div class="overlay"><h3>Your turn to draw!</h3><p>Pick a word</p><div class="choices">${s.choices.map((c, i) => `<button data-pick="${i}">${esc(c)}</button>`).join('')}</div></div>` : `<div class="overlay"><h3>${esc((ctx.players[s.drawer] || {}).name || 'Someone')} is picking a word…</h3><p>Get ready to guess!</p></div>`;
+  else if (s.phase === 'reveal' && s.gain){
+    const rows = Object.entries(s.gain.guessers).map(([k, v]) => `<span>${esc((ctx.players[+k] || {}).name || 'Player')} +${v}</span>`).join('') || '<span>Nobody guessed it this time</span>';
+    oh = `<div class="overlay"><p style="margin:0">The word was</p><h3>${esc(s.gain.word)}</h3><div class="gains">${rows}<span>${esc((ctx.players[s.drawer] || {}).name || 'Artist')} (artist) +${s.gain.drawer}</span></div></div>`;
+  }
+  if (ov.dataset.k !== oh){ ov.dataset.k = oh; ov.innerHTML = oh; }
+  // tools
+  const tl = sk.querySelector('.tools');
+  const th = artist ? PAL.map(c => `<button class="sw ${tool.c === c ? 'on' : ''}" data-c="${c}" style="background:${c}" aria-label="Colour"></button>`).join('') + [4, 10, 22].map(z => `<button class="sz ${tool.w === z ? 'on' : ''}" data-w="${z}" aria-label="Brush size"><i style="width:${z / 1.6 + 3}px;height:${z / 1.6 + 3}px"></i></button>`).join('') + '<button class="ib" data-t="undo">Undo</button><button class="ib" data-t="clear">Clear</button>' : '';
+  if (tl.dataset.k !== th){ tl.dataset.k = th; tl.innerHTML = th; }
+  sk.querySelector('canvas').style.cursor = artist ? 'crosshair' : 'default';
+  // guess box
+  const gi = sk.querySelector('.gform input'), canGuess = s.phase === 'draw' && me != null && me !== s.drawer;
+  gi.disabled = !canGuess; sk.querySelector('.gform button').disabled = !canGuess;
+  gi.placeholder = me === s.drawer ? 'You’re drawing!' : s.guessed && s.guessed[me] != null ? 'Chat with others who got it' : canGuess ? 'Type your guess' : 'Wait for the drawing';
+  // feed
+  const fd = sk.querySelector('.feed'), name = i => (ctx.players[i] || {}).name || 'Player';
+  fd.innerHTML = s.feed.slice(-60).map(f => f.k === 'sys' ? `<div class="sys">${esc(f.t)}</div>`
+    : f.k === 'right' ? `<div class="right">${esc(name(f.s))} guessed the word!</div>`
+    : f.k === 'close' ? `<div class="close">“${esc(f.t)}” is so close!</div>`
+    : `<div class="${f.k === 'secret' ? 'secret' : ''}"><b>${esc(name(f.s))}</b> ${esc(f.t)}</div>`).join('');
+  fd.scrollTop = fd.scrollHeight;
+  if (s.feed.length !== lastFeedN){ const last = s.feed[s.feed.length - 1]; if (last && last.k === 'right') ctx.sfx.good(); else if (last && last.k === 'close') ctx.sfx.notify(); lastFeedN = s.feed.length; }
+  if (s.phase !== lastPhase){ if (s.phase === 'draw' && me === s.drawer) ctx.toast('Your word: ' + s.word); if (s.phase === 'reveal') ctx.sfx.start(); lastPhase = s.phase; }
+  paint(); tick();
+}
+function tick(){
+  const s = CTX && CTX.state; const sk = document.querySelector('.sk'); if (!s || !sk) return;
+  const t = sk.querySelector('.timer');
+  if (s.phase !== 'draw' && s.phase !== 'choose'){ t.style.visibility = 'hidden'; return; }
+  t.style.visibility = '';
+  const total = s.phase === 'draw' ? s.time : CHOOSE_MS, left = Math.max(0, s.deadline - CTX.now());
+  t.querySelector('.tt').textContent = Math.ceil(left / 1000) + 's';
+  t.querySelector('.tb i').style.width = (left / total * 100).toFixed(1) + '%';
+  t.classList.toggle('low', left < 10000 && s.phase === 'draw');
+}
+function onTool(e){
+  const b = e.target.closest('button'); if (!b || !CTX) return;
+  if (b.dataset.c){ tool.c = b.dataset.c; if (tool.c === '#ffffff' && tool.w < 10) tool.w = 22; }
+  else if (b.dataset.w) tool.w = +b.dataset.w;
+  else if (b.dataset.t === 'undo') CTX.act({undo:true});
+  else if (b.dataset.t === 'clear') CTX.act({clear:true});
+  render(CTX, document.querySelector('#gstage'));
+}
+function penDown(e){
+  const s = CTX && CTX.state; if (!s || s.phase !== 'draw' || CTX.viewer !== s.drawer) return;
+  const cv = e.currentTarget, r = cv.getBoundingClientRect();
+  const pt = ev => [Math.round((ev.clientX - r.left) / r.width * 1000), Math.round((ev.clientY - r.top) / r.width * 1000)];
+  try{ cv.setPointerCapture(e.pointerId); }catch(x){}
+  const id = Math.random().toString(36).slice(2, 10);
+  myStroke = {id, c:tool.c, w:tool.w, p:pt(e)}; let sent = 0;
+  const flush = () => { if (myStroke && myStroke.p.length > sent){ CTX.live({id, c:myStroke.c, w:myStroke.w, p:myStroke.p.slice(sent)}); sent = myStroke.p.length; } };
+  const ft = setInterval(flush, 60);
+  const move = ev => { for (const ce of (ev.getCoalescedEvents ? ev.getCoalescedEvents() : [ev])){ const [x, y] = pt(ce); const p = myStroke.p; if (Math.hypot(x - p[p.length - 2], y - p[p.length - 1]) >= 3) p.push(x, y); } paint(); };
+  const up = () => {
+    cv.removeEventListener('pointermove', move); cv.removeEventListener('pointerup', up); cv.removeEventListener('pointercancel', up);
+    clearInterval(ft); flush();
+    const st = myStroke; myStroke = null;
+    if (st){ live[st.id] = st; CTX.act({stroke:st}); }
+  };
+  cv.addEventListener('pointermove', move); cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+  paint();
+}
+}
+</script>
+</body>
+</html>

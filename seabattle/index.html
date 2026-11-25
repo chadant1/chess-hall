@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sea Battle · Game Hall</title>
+<meta name="theme-color" content="#1b1016">
+<link rel="manifest" href="../manifest.webmanifest"><link rel="icon" href="../icons/icon-192.png"><link rel="apple-touch-icon" href="../icons/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/hall.css">
+<style>
+/* Sea Battle: two charts of deep blue water in brass frames; grey hulls, white splashes for misses, fire for hits. */
+.sb{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:clamp(12px,2.5vw,26px);align-items:start}
+.sb.placing{grid-template-columns:minmax(0,1fr)}
+.panelb{display:flex;flex-direction:column;gap:8px}
+.ptitle{display:flex;align-items:baseline;justify-content:space-between;gap:8px;font:700 20px/1.1 Fraunces,Georgia,serif}
+.ptitle small{font:700 13px/1 Manrope,system-ui,sans-serif;color:var(--mut)}
+.chart{padding:8px;border-radius:16px;background:linear-gradient(150deg,#6b5a3a,#2e2414);box-shadow:var(--sh),inset 0 0 0 2px rgba(227,183,92,.45)}
+.grid{position:relative;aspect-ratio:1;border-radius:6px;overflow:hidden;background:radial-gradient(circle at 40% 30%,#1f5f8e,#0b2a45 80%);display:grid;grid-template:repeat(10,1fr)/repeat(10,1fr);user-select:none;-webkit-user-select:none;touch-action:manipulation}
+.placing .chart{max-width:576px;width:100%;margin:0 auto}
+.grid::before{content:"";position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(170deg,rgba(255,255,255,.035) 0 3px,transparent 3px 11px)}
+.cell{position:relative;border-right:1px solid rgba(255,255,255,.08);border-bottom:1px solid rgba(255,255,255,.08)}
+.enemy .cell.can{cursor:crosshair}
+.enemy .cell.can:hover{background:rgba(255,255,255,.1)}
+.cell.heat{background:rgba(247,205,90,var(--h))}
+.ship{position:absolute;border-radius:999px;background:linear-gradient(180deg,#9aa7b5,#5f6b78);box-shadow:inset 0 2px 0 rgba(255,255,255,.35),0 3px 6px rgba(0,0,0,.45);pointer-events:none;display:flex;align-items:center;justify-content:space-evenly;padding:0 4%}
+.ship.v{flex-direction:column;padding:4% 0}
+.ship i{width:14%;max-width:9px;aspect-ratio:1;border-radius:50%;background:#384451;box-shadow:inset 0 1px 0 rgba(0,0,0,.4)}
+.ship.v i{width:auto;height:14%;max-height:9px}
+.ship.sunk{background:linear-gradient(180deg,#5a3a3a,#2e1d1d);opacity:.9}
+.ship.sel{box-shadow:0 0 0 3px #f3cf73,0 3px 10px rgba(0,0,0,.5)}
+.ship.bad{background:linear-gradient(180deg,#e88,#b44)}
+.mk{position:absolute;inset:18%;border-radius:50%;pointer-events:none}
+.mk.miss{border:3px solid rgba(235,245,255,.85);inset:28%}
+.mk.hit{background:radial-gradient(circle,#ffe27a 0 30%,#ff7a2a 55%,rgba(230,60,20,.0) 72%);inset:6%}
+.mk.new{animation:boom .5s cubic-bezier(.2,.8,.3,1.4)}
+.mk.miss.new{animation:splash .6s ease-out}
+@keyframes boom{from{transform:scale(2.2);opacity:0}}
+@keyframes splash{0%{transform:scale(.2);opacity:1;border-width:8px}100%{transform:scale(1)}}
+.fleetrow{display:flex;gap:6px;flex-wrap:wrap;font-size:13px;font-weight:700;color:var(--mut)}
+.fleetrow span{padding:3px 8px;border-radius:99px;background:var(--panel2);border:1px solid var(--line)}
+.fleetrow span.dead{text-decoration:line-through;opacity:.55}
+.pctl{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:4px}
+.ptip{text-align:center;color:var(--mut);font-size:14px;font-weight:600}
+@media (max-width:760px){.sb{grid-template-columns:minmax(0,1fr)}.sb .mine{max-width:300px;justify-self:center;width:100%}}
+</style>
+</head>
+<body>
+<script src="../shared/peerjs.min.js"></script>
+<script src="../shared/hall.js"></script>
+<script>
+{
+const FLEET = [5, 4, 3, 3, 2];
+const NAMES = {5:'Carrier', 4:'Battleship', 3:'Cruiser', 2:'Patrol boat'};
+const esc = Hall.esc;
+function shipCells(start, len, vert){ const r = Math.floor(start / 10), c = start % 10, out = []; for (let k = 0; k < len; k++){ const rr = vert ? r + k : r, cc = vert ? c : c + k; if (rr > 9 || cc > 9) return null; out.push(rr * 10 + cc); } return out; }
+function randomFleet(){
+  for (let tries = 0; tries < 500; tries++){
+    const used = new Set(), ships = []; let ok = true;
+    for (const len of FLEET){
+      let placed = false;
+      for (let t = 0; t < 200 && !placed; t++){
+        const vert = Math.random() < .5, cells = shipCells(Math.floor(Math.random() * 100), len, vert);
+        if (cells && cells.every(x => !used.has(x))){ cells.forEach(x => used.add(x)); ships.push({len, cells}); placed = true; }
+      }
+      if (!placed){ ok = false; break; }
+    }
+    if (ok) return ships;
+  }
+  return null;
+}
+function validFleet(ships){
+  if (!Array.isArray(ships) || ships.length !== FLEET.length) return false;
+  const lens = ships.map(s => s && s.len).sort().join(), want = FLEET.slice().sort().join(); if (lens !== want) return false;
+  const used = new Set();
+  for (const s of ships){
+    if (!Array.isArray(s.cells) || s.cells.length !== s.len) return false;
+    const cs = s.cells.map(Number); if (cs.some(x => !(x >= 0 && x < 100) || used.has(x))) return false;
+    const rows = new Set(cs.map(x => Math.floor(x / 10))), cols = new Set(cs.map(x => x % 10));
+    const sorted = cs.slice().sort((a, b) => a - b);
+    if (rows.size === 1){ if (!sorted.every((x, i) => i === 0 || x === sorted[i - 1] + 1)) return false; }
+    else if (cols.size === 1){ if (!sorted.every((x, i) => i === 0 || x === sorted[i - 1] + 10)) return false; }
+    else return false;
+    cs.forEach(x => used.add(x));
+  }
+  return true;
+}
+function setup({first, opts}){ return {phase:'place', fleets:[null, null], shots:[[], []], ready:[false, false], turn:first % 2, first:first % 2, n:0, last:null, winner:null, extra:!!opts.extra}; }
+const shotAt = (s, target, i) => s.shots[target].find(x => x.i === i);
+function act(s, seat, a){
+  if (s.winner != null) throw new Error('The battle is over');
+  if (a.place){
+    if (s.phase !== 'place' || s.ready[seat]) throw new Error('Your ships are already placed');
+    const ships = a.place.map(x => ({len:+x.len, cells:(x.cells || []).map(Number)}));
+    if (!validFleet(ships)) throw new Error('Ships must be in straight lines, inside the grid, and not overlapping');
+    s.fleets[seat] = ships; s.ready[seat] = true; s.n++; s.last = {seat, kind:'ready', n:s.n};
+    if (s.ready[0] && s.ready[1]){ s.phase = 'fire'; s.turn = s.first; }
+    return s;
+  }
+  if (a.fire != null){
+    if (s.phase !== 'fire') throw new Error('Wait until both fleets are placed');
+    if (seat !== s.turn) throw new Error('It’s not your turn');
+    const i = +a.fire, t = 1 - seat;
+    if (!(i >= 0 && i < 100)) throw new Error('Pick a square in enemy waters');
+    if (shotAt(s, t, i)) throw new Error('You already fired there');
+    const ship = s.fleets[t].find(sh => sh.cells.includes(i));
+    const shot = {i, hit:!!ship, sunk:null};
+    s.shots[t].push(shot);
+    if (ship && ship.cells.every(x => shotAt(s, t, x))) shot.sunk = ship.len;
+    s.n++; s.last = {seat, kind:'fire', i, hit:!!ship, sunk:shot.sunk, n:s.n};
+    if (s.fleets[t].every(sh => sh.cells.every(x => shotAt(s, t, x)))){ s.winner = seat; return s; }
+    if (!(ship && s.extra)) s.turn = t;
+    return s;
+  }
+  throw new Error('Place your ships or fire a shot');
+}
+// Where could the remaining enemy ships be? Counts every placement that fits what you know.
+function density(shots){
+  const miss = new Set(), hitOpen = new Set(), sunkCells = new Set(), sunkLens = [];
+  for (const x of shots){ if (!x.hit) miss.add(x.i); else hitOpen.add(x.i); if (x.sunk) sunkLens.push(x.sunk); }
+  // cells of sunk ships are unknown exactly; treat hits adjacent-connected to a sunk shot as settled, using a simple flood from the sinking shot
+  for (const x of shots) if (x.sunk){ const st = [x.i], seen = new Set([x.i]); let need = x.sunk; while (st.length && need > 0){ const c = st.pop(); if (hitOpen.has(c)){ hitOpen.delete(c); sunkCells.add(c); need--; } for (const d of [1, -1, 10, -10]){ const n = c + d; if (n < 0 || n > 99 || (Math.abs(d) === 1 && Math.floor(n / 10) !== Math.floor(c / 10))) continue; if (!seen.has(n) && (hitOpen.has(n))){ seen.add(n); st.push(n); } } } }
+  const left = FLEET.slice(); for (const l of sunkLens){ const k = left.indexOf(l); if (k >= 0) left.splice(k, 1); }
+  const score = new Float64Array(100);
+  for (const len of left) for (const vert of [false, true]) for (let st = 0; st < 100; st++){
+    const cells = shipCells(st, len, vert); if (!cells || cells.some(c => miss.has(c) || sunkCells.has(c))) continue;
+    const hits = cells.filter(c => hitOpen.has(c)).length, w = hits ? 1 + hits * 30 : 1;
+    for (const c of cells) if (!hitOpen.has(c)) score[c] += w;
+  }
+  const shotSet = new Set(shots.map(x => x.i)); for (const i of shotSet) score[i] = 0;
+  return score;
+}
+function cpu(s, seat, level){
+  if (s.phase === 'place') return {place:randomFleet()};
+  const t = 1 - seat, shots = s.shots[t], shot = new Set(shots.map(x => x.i));
+  const open = []; for (let i = 0; i < 100; i++) if (!shot.has(i)) open.push(i);
+  const rnd = a => a[Math.floor(Math.random() * a.length)];
+  if (level === 0) return {fire:rnd(open)};
+  if (level === 1){
+    const live = shots.filter(x => x.hit && !x.sunk).map(x => x.i);
+    const nb = []; for (const h of live) for (const d of [1, -1, 10, -10]){ const n = h + d; if (n < 0 || n > 99 || (Math.abs(d) === 1 && Math.floor(n / 10) !== Math.floor(h / 10)) || shot.has(n)) continue; nb.push(n); }
+    if (nb.length && !shots.some(x => x.sunk && live.length === 0)) return {fire:rnd(nb)};
+    return {fire:rnd(open.filter(i => (Math.floor(i / 10) + i) % 2 === 0)) ?? rnd(open)};
+  }
+  const sc = density(shots); let best = -1, cand = [];
+  for (const i of open){ const v = sc[i] + (level === 2 ? Math.random() * 2 : 0); if (v > best + 1e-9){ best = v; cand = [i]; } else if (Math.abs(v - best) < 1e-9) cand.push(i); }
+  return {fire:rnd(cand.length ? cand : open)};
+}
+let CTX = null, draft = null, selShip = 0, lastN = null, drafted = null;
+Hall.run({
+  id:'seabattle', name:'Sea Battle', min:2, max:2, colors:['#7fc3e8', '#e5484d'], layout:'wide', hidden:true, anyTurn:true, handWord:'fleet', resign:true,
+  icon:'<svg viewBox="0 0 32 32"><rect x="2" y="2" width="28" height="28" rx="6" fill="#174a73"/><rect x="6" y="14" width="18" height="6" rx="3" fill="#a9b6c4"/><circle cx="23" cy="9" r="4" fill="#ff8a3d"/><circle cx="23" cy="9" r="2" fill="#ffe27a"/><circle cx="9" cy="25" r="2.5" fill="none" stroke="#e8f4ff" stroke-width="1.5"/></svg>',
+  tagline:'Hide your fleet, then hunt down your opponent’s ships.',
+  hintable:true, hintLabel:'Show where ships are likely to be', hintShort:'Hints', logLabel:'Shots',
+  options:[{key:'extra', label:'After a hit', def:false, choices:[[false, 'Turn passes'], [true, 'Fire again']]}],
+  credit:'Sea Battle uses the classic hidden-fleet guessing game rules.',
+  rules:`<p>Each player hides a fleet of five ships on their own 10×10 grid: a Carrier (5 squares), a Battleship (4), two Cruisers (3) and a Patrol boat (2).</p>
+  <h3>Placing ships</h3><p>Ships go across or down, never diagonally, and can't overlap. Tap a ship to pick it, tap a square to move it there, and use <b>Rotate</b> to turn it. <b>Shuffle</b> places them all at random. Press <b>Ready</b> when you're happy.</p>
+  <h3>Firing</h3><p>Take turns tapping a square in the enemy's waters. A white ring is a miss; fire means you hit a ship. When every square of a ship is hit, it sinks and is revealed.</p>
+  <h3>Winning</h3><p>Sink the whole enemy fleet first.</p>
+  <h3>Hints</h3><p>With hints on, gold shading in enemy waters shows where ships are most likely to be.</p>`,
+  setup, act, cpu,
+  current:s => s.winner != null ? null : s.phase === 'place' ? (s.ready[0] ? (s.ready[1] ? null : 1) : 0) : s.turn,
+  cpuSeats:s => s.phase === 'place' ? [0, 1].filter(i => !s.ready[i]) : [s.turn],
+  countHint:a => a.fire != null,
+  view(s, seat){
+    for (const k of [0, 1]){
+      if (k === seat || !s.fleets[k]) continue;
+      const shots = s.shots[k], hitSet = new Set(shots.filter(x => x.hit).map(x => x.i));
+      s.fleets[k] = s.fleets[k].filter(sh => sh.cells.every(c => hitSet.has(c)));
+    }
+    return s;
+  },
+  over:s => s.winner != null ? {winners:[s.winner], text:'by sinking the whole fleet'} : null,
+  cpuDelay:s => s.phase === 'place' ? 400 : 900,
+  describe(a, prev, next){ const l = next.last; if (l.kind === 'ready') return 'hid a fleet'; const sq = 'ABCDEFGHIJ'[Math.floor(l.i / 10)] + (l.i % 10 + 1); return l.sunk ? `fired at ${sq}: sank a ${NAMES[l.sunk]}!` : l.hit ? `fired at ${sq}: hit!` : `fired at ${sq}: miss`; },
+  score(s, i){ const sunk = s.shots[1 - i].filter(x => x.sunk).length; return {v:sunk + '/5', l:'ships sunk'}; },
+  statusTitle(s, {actor}){
+    if (!s || s.winner != null) return null;
+    if (s.phase === 'place' && actor != null) return s.ready[actor] ? 'Waiting for your opponent' : 'Place your ships';
+    return null;
+  },
+  status(s, {actor}){
+    if (!s || s.winner != null) return '';
+    if (s.phase === 'place') return actor != null && !s.ready[actor] ? 'Drag your fleet into place, then press Ready' : 'Your opponent is hiding their ships';
+    return actor != null && s.turn === actor ? 'Tap a square in enemy waters to fire' : '';
+  },
+  render
+});
+function shipEl(sh, cls){
+  const cs = sh.cells.slice().sort((a, b) => a - b), r0 = Math.floor(cs[0] / 10), c0 = cs[0] % 10, vert = cs.length > 1 && cs[1] - cs[0] === 10;
+  const w = vert ? 1 : sh.len, h = vert ? sh.len : 1;
+  return `<div class="ship ${vert ? 'v' : ''} ${cls || ''}" style="left:calc(${c0 * 10}% + 3px);top:calc(${r0 * 10}% + 3px);width:calc(${w * 10}% - 6px);height:calc(${h * 10}% - 6px)">${'<i></i>'.repeat(Math.max(1, sh.len - 1))}</div>`;
+}
+function gridHtml(kind){ return `<div class="grid ${kind}">${Array.from({length:100}, (_, i) => `<div class="cell" data-i="${i}"></div>`).join('')}</div>`; }
+function render(ctx, stage){
+  CTX = ctx;
+  const s = ctx.state, me = ctx.viewer, actor = ctx.actor;
+  const placing = s.phase === 'place' && actor != null && !s.ready[actor];
+  let sb = stage.querySelector('.sb');
+  const mode = placing ? 'placing' : 'fire';
+  if (!sb || sb.dataset.mode !== mode){
+    stage.innerHTML = placing
+      ? `<div class="sb placing" data-mode="placing"><div class="panelb"><div class="ptitle">Your waters <small>Tap a ship, then tap where it goes</small></div><div class="chart">${gridHtml('mine place')}</div><div class="pctl"><button class="ib" data-p="rot">Rotate</button><button class="ib" data-p="shuf">Shuffle</button><button class="ib pri" data-p="ready">Ready</button></div></div></div>`
+      : `<div class="sb" data-mode="fire"><div class="panelb"><div class="ptitle">Enemy waters <small class="et"></small></div><div class="chart">${gridHtml('enemy')}</div><div class="fleetrow efl"></div></div><div class="panelb mine"><div class="ptitle">Your waters <small class="mt"></small></div><div class="chart">${gridHtml('mine')}</div><div class="fleetrow mfl"></div></div></div>`;
+    sb = stage.querySelector('.sb'); lastN = null;
+    sb.addEventListener('click', onClick);
+  }
+  if (placing){
+    if (!draft || drafted !== (ctx.T && ctx.T.round) + ':' + actor){ draft = randomFleet(); selShip = 0; drafted = (ctx.T && ctx.T.round) + ':' + actor; }
+    drawPlace(sb);
+    return;
+  }
+  draft = null;
+  const opp = me == null ? 1 : 1 - me, mine = me == null ? 0 : me;
+  const eg = sb.querySelector('.grid.enemy'), mg = sb.querySelector('.grid.mine');
+  const newShot = s.last && s.last.kind === 'fire' && s.last.n !== lastN && lastN !== null;
+  // enemy waters: my shots at them, their sunk ships, optional heat map
+  const heat = ctx.hints && actor != null && s.phase === 'fire' && s.turn === actor ? density(s.shots[opp]) : null;
+  const mx = heat ? Math.max(...heat) || 1 : 1;
+  draw(eg, s.fleets[opp] || [], s.shots[opp], newShot && s.last.seat !== opp ? s.last.i : -1, heat, mx, actor != null && s.turn === actor && s.phase === 'fire');
+  draw(mg, s.fleets[mine] || [], s.shots[mine], newShot && s.last.seat === opp ? s.last.i : -1, null, 1, false);
+  const sunkBy = who => s.shots[who].filter(x => x.sunk).map(x => x.sunk);
+  const fleetRow = (el, who) => { const sunk = sunkBy(who).slice(); el.innerHTML = FLEET.map(l => { const k = sunk.indexOf(l); if (k >= 0){ sunk.splice(k, 1); return `<span class="dead">${NAMES[l]}</span>`; } return `<span>${NAMES[l]}</span>`; }).join(''); };
+  fleetRow(sb.querySelector('.efl'), opp); fleetRow(sb.querySelector('.mfl'), mine);
+  sb.querySelector('.et').textContent = s.phase === 'place' ? 'Hidden' : `${s.shots[opp].length} shots fired`;
+  sb.querySelector('.mt').textContent = s.phase === 'place' ? (s.ready[mine] ? 'Ready' : '') : `${s.shots[mine].filter(x => x.hit).length} hits taken`;
+  if (newShot && ctx.anim){ if (s.last.sunk){ ctx.sfx.capture(); setTimeout(() => ctx.sfx.good(), 250); ctx.toast((s.last.seat === mine ? 'You sank a ' : 'They sank your ') + NAMES[s.last.sunk] + '!'); } else if (s.last.hit) ctx.sfx.capture(); else ctx.sfx.flip(); }
+  lastN = s.last ? s.last.n : 0;
+}
+function draw(g, ships, shots, fresh, heat, mx, can){
+  let ov = g.querySelector('.ov2'); if (!ov){ ov = document.createElement('div'); ov.className = 'ov2'; ov.style.cssText = 'position:absolute;inset:0;pointer-events:none'; g.appendChild(ov); }
+  const sunkCells = new Set(); ships.forEach(sh => { if (sh.cells.every(c => shots.some(x => x.i === c && x.hit))) sh.cells.forEach(c => sunkCells.add(c)); });
+  ov.innerHTML = ships.map(sh => shipEl(sh, sh.cells.every(c => sunkCells.has(c)) ? 'sunk' : '')).join('');
+  const byI = new Map(shots.map(x => [x.i, x]));
+  g.querySelectorAll('.cell').forEach(c => {
+    const i = +c.dataset.i, x = byI.get(i);
+    c.classList.toggle('can', can && !x);
+    if (heat && !x && heat[i] > 0){ c.classList.add('heat'); c.style.setProperty('--h', (Math.pow(heat[i] / mx, 1.6) * .55).toFixed(3)); } else { c.classList.remove('heat'); c.style.removeProperty('--h'); }
+    const want = x ? (x.hit ? 'hit' : 'miss') : '';
+    const m = c.querySelector('.mk');
+    if ((m ? m.dataset.k : '') !== want){ if (m) m.remove(); if (want){ const e = document.createElement('i'); e.className = 'mk ' + want + (i === fresh ? ' new' : ''); e.dataset.k = want; c.appendChild(e); } }
+  });
+  // markers sit above ship hulls
+  g.querySelectorAll('.mk').forEach(e => { e.style.zIndex = 2; });
+  ov.style.zIndex = 1;
+}
+function drawPlace(sb){
+  const g = sb.querySelector('.grid');
+  let ov = g.querySelector('.ov2'); if (!ov){ ov = document.createElement('div'); ov.className = 'ov2'; ov.style.cssText = 'position:absolute;inset:0;pointer-events:none'; g.appendChild(ov); }
+  const counts = {}; draft.forEach(sh => sh.cells.forEach(c => { counts[c] = (counts[c] || 0) + 1; }));
+  ov.innerHTML = draft.map((sh, k) => shipEl(sh, (k === selShip ? 'sel ' : '') + (sh.cells.some(c => counts[c] > 1) ? 'bad' : ''))).join('');
+  sb.querySelector('[data-p="ready"]').disabled = !validFleet(draft);
+}
+function onClick(e){
+  const ctx = CTX; if (!ctx || ctx.actor == null) return;
+  const s = ctx.state, b = e.target.closest('[data-p]');
+  if (draft && b){
+    const sb = e.currentTarget;
+    if (b.dataset.p === 'shuf'){ draft = randomFleet(); ctx.sfx.card(); drawPlace(sb); }
+    else if (b.dataset.p === 'rot'){
+      const sh = draft[selShip], cs = sh.cells.slice().sort((x, y) => x - y), vert = cs.length > 1 && cs[1] - cs[0] === 10;
+      const r = Math.floor(cs[0] / 10), c = cs[0] % 10;
+      const nc = shipCells(!vert ? Math.min(r, 10 - sh.len) * 10 + c : r * 10 + Math.min(c, 10 - sh.len), sh.len, !vert);
+      if (nc){ sh.cells = nc; ctx.sfx.flip(); drawPlace(sb); } else { ctx.sfx.bad(); ctx.toast('No room to turn it there'); }
+    }
+    else if (b.dataset.p === 'ready'){ if (validFleet(draft)) ctx.act({place:draft}); else { ctx.sfx.bad(); ctx.toast('Some ships overlap. Move the red ones.'); } }
+    return;
+  }
+  const cell = e.target.closest('.cell'); if (!cell) return;
+  const i = +cell.dataset.i;
+  if (draft){
+    const sb = e.currentTarget;
+    const hitShip = draft.findIndex(sh => sh.cells.includes(i));
+    if (hitShip >= 0 && hitShip !== selShip){ selShip = hitShip; ctx.sfx.flip(); drawPlace(sb); return; }
+    const sh = draft[selShip], cs = sh.cells.slice().sort((x, y) => x - y), vert = cs.length > 1 && cs[1] - cs[0] === 10;
+    let nc = shipCells(i, sh.len, vert);
+    if (!nc){ const r = Math.floor(i / 10), c = i % 10; nc = shipCells(vert ? Math.min(r, 10 - sh.len) * 10 + c : r * 10 + Math.min(c, 10 - sh.len), sh.len, vert); }
+    if (nc){ sh.cells = nc; ctx.sfx.place(); drawPlace(sb); }
+    return;
+  }
+  if (!cell.closest('.enemy')) return;
+  if (s.phase !== 'fire'){ ctx.toast('Waiting for both fleets to be placed'); return; }
+  if (s.turn !== ctx.actor){ ctx.sfx.bad(); ctx.toast('Wait for your turn'); return; }
+  const opp = 1 - ctx.actor;
+  if (s.shots[opp].some(x => x.i === i)){ ctx.sfx.bad(); ctx.toast('You already fired there'); return; }
+  ctx.act({fire:i});
+}
+}
+</script>
+</body>
+</html>

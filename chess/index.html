@@ -252,7 +252,7 @@ textarea.copy{width:100%;min-height:160px;border-radius:12px;border:1px solid va
       <div style="font-weight:800">Invite a friend</div>
       <div style="font-size:14px;color:var(--mut)">Send them the link or the code. The game starts when they join; keep this page open.</div>
       <div class="code" id="invCode">------</div>
-      <div class="row"><button class="ib" id="bCopyLink"><svg class="i" viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>Copy invite</button><button class="ib" id="bCopyCode">Copy code</button></div>
+      <div class="row"><button class="ib" id="bCopyLink"><svg class="i" viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>Copy invite</button><button class="ib" id="bCopyCode">Copy code</button></div><div id="famInv"></div>
     </div>
     <div class="offer" id="offer"></div>
     <div class="ctl" style="display:flex;flex-direction:column;gap:8px">
@@ -342,6 +342,7 @@ textarea.copy{width:100%;min-height:160px;border-radius:12px;border:1px solid va
 <canvas id="confetti"></canvas>
 
 <script src="lib/peerjs.min.js"></script>
+<script src="../shared/lobby.js"></script>
 <script src="lib/chess.js"></script>
 <script src="lib/pieces.js"></script>
 <script>
@@ -1205,7 +1206,42 @@ function merge(a, b){ for (const k in b){ const v = b[k]; if (v && typeof v === 
 function hosted(){ return store.get('hosted', {}); }
 function saveHosted(d){ const h = hosted(); h[d.code] = d; const keys = Object.keys(h).sort((a, b) => (h[b].updated || 0) - (h[a].updated || 0)); for (const k of keys.slice(15)) delete h[k]; store.set('hosted', h); }
 function rememberJoined(code){ const j = store.get('joined', {}); j[code] = Date.now(); store.set('joined', j); }
+function lobbyInfo(){
+  let table = null;
+  if (S.mode === 'online' && ON.code && ON.d){
+    const d = ON.d, nm = id => (d.names && d.names[id]) || 'Player';
+    table = {code:ON.code, game:'chess', host:ON.role === 'host', open:d.status === 'waiting' ? 1 : 0, phase:d.status === 'waiting' ? 'lobby' : d.status === 'over' ? 'over' : 'play', players:[d.white, d.black].filter(Boolean).map(nm)};
+  }
+  return {where:'chess', game:'Chess', table};
+}
+const invitedFam = new Set();
+function famInvite(){
+  const box = $('#famInv'); if (!box) return;
+  if (!window.Lobby || !Lobby.room || ON.role !== 'host' || !ON.code){ box.innerHTML = ''; return; }
+  const ppl = Lobby.roster.filter(p => p.pid !== Lobby.myPid() && !(p.table && p.table.code === ON.code));
+  box.innerHTML = ppl.length ? '<div style="font-weight:800;font-size:14px;margin:12px 0 6px">Family online now</div>' : '<div style="font-size:13px;color:var(--mut);margin-top:10px">Nobody else from your family room is online right now.</div>';
+  for (const p of ppl){
+    const row = document.createElement('div'); row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:6px';
+    const nm = document.createElement('span'); nm.style.fontWeight = '700'; nm.textContent = p.name + (p.table ? ' · in a game' : '');
+    const b = document.createElement('button'); b.className = 'ib'; b.style.minHeight = '36px'; const key = p.pid + ON.code;
+    b.textContent = invitedFam.has(key) ? 'Invited' : 'Invite'; b.disabled = invitedFam.has(key);
+    b.onclick = () => { if (Lobby.invite(p.pid, 'chess', ON.code, 'Chess')){ invitedFam.add(key); b.textContent = 'Invited'; b.disabled = true; toast('Invite sent to ' + p.name); } else toast('Not connected to your family room yet'); };
+    row.append(nm, b); box.appendChild(row);
+  }
+}
+if (window.Lobby){ Lobby.onChange(famInvite); }
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('../sw.js', {scope:'../'}).catch(() => {});
 function initNet(){
+  if (window.Lobby) Lobby.start({getInfo:lobbyInfo});
+  let ah = null; try{ ah = JSON.parse(sessionStorage.getItem('gamehall.autohost') || 'null'); }catch(e){}
+  if (ah && ah.game === 'chess' && typeof window.Peer === 'function' && !/^#g-/.test(location.hash)){
+    try{ sessionStorage.removeItem('gamehall.autohost'); }catch(e){}
+    ON.state = 'ok';
+    createGame(P.color || 'w', tcFromKey(P.tc));
+    (Array.isArray(ah.to) ? ah.to : []).forEach(pid => setTimeout(() => window.Lobby && ON.code && Lobby.invite(String(pid), 'chess', ON.code, 'Chess'), 600));
+    toast('Invite sent. The game starts when they join.');
+    return;
+  }
   ON.state = typeof window.Peer === 'function' ? 'ok' : 'none';
   if ($('#ovNew').classList.contains('show')) renderNew();
   const m = /^#g-([a-z0-9]{4,12})$/.exec(location.hash);
@@ -1367,6 +1403,7 @@ function netTick(){
 }
 setInterval(() => { if (S.mode === 'online'){ send({t:'ping'}); netTick(); } }, 4000);
 function applyRemote(d){
+  setTimeout(() => { if (window.Lobby) Lobby.update(); famInvite(); }, 0);
   ON.first = !ON.d;
   ON.d = d;
   ON.seat = d.white === ON.uid ? 'w' : d.black === ON.uid ? 'b' : null;
